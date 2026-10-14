@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>運転日報 · 管理</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #C9A961; --cream: #FAF8F3; --card: #fff; --border: #E8E5DF;
+      --dark: #2C2C2C; --mid: #4A4A4A; --light: #7A7A7A; --ok: #1E8E4F; --danger: #DC3545;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Inter,'Noto Sans SC','Noto Sans JP',sans-serif; background: var(--cream); color: var(--dark); min-height: 100vh; }
+    .bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+      background: var(--card); border-bottom: 1px solid var(--border); padding: .85rem 1.25rem;
+    }
+    .bar h1 { font-size: 1.05rem; }
+    .brand { font-size: .72rem; letter-spacing: .12em; color: var(--gold); font-weight: 700; }
+    .tabs { display: flex; gap: .4rem; }
+    .tab {
+      border: 1px solid var(--border); background: var(--cream); border-radius: 8px;
+      padding: .35rem .75rem; font-size: .82rem; font-weight: 600; cursor: pointer; color: var(--mid);
+    }
+    .tab.on { background: var(--gold); color: #fff; border-color: var(--gold); }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 1.1rem 1rem 3rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; color: var(--light); font-size: .72rem; letter-spacing: .04em; padding: .45rem .4rem; border-bottom: 1px solid var(--border); }
+    td { padding: .55rem .4rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .pill { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: .12rem .5rem; }
+    .pill.ok { background: #e7f6ec; color: var(--ok); }
+    .pill.draft { background: #f3f1ea; color: var(--light); }
+    .btn {
+      border: 0; background: var(--dark); color: #fff; border-radius: 8px;
+      padding: .42rem .75rem; font-size: .8rem; font-weight: 600; cursor: pointer;
+    }
+    .btn.ghost { background: #fff; color: var(--mid); border: 1px solid var(--border); }
+    .btn.gold { background: var(--gold); }
+    .btn.danger { background: var(--danger); }
+    label { display: block; font-size: .78rem; font-weight: 600; color: var(--mid); margin: .5rem 0 .25rem; }
+    input, select, textarea {
+      width: 100%; font-size: .9rem; font-family: inherit;
+      padding: .55rem .65rem; border: 1.5px solid var(--border); border-radius: 8px; background: var(--cream);
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); background: #fff; }
+    textarea { min-height: 4rem; }
+    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+    .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .6rem; }
+    .notice { background: rgba(201,169,97,.1); border: 1px solid rgba(201,169,97,.35); border-radius: 10px; padding: .7rem .9rem; font-size: .82rem; color: var(--mid); margin-bottom: 1rem; }
+    .row { display: flex; gap: .5rem; align-items: center; }
+    .list-item { display: flex; gap: .5rem; align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--border); }
+    .list-item input { flex: 1; }
+    .muted { color: var(--light); font-size: .78rem; }
+    .print-only { display: none; }
+
+    @media print {
+      .bar, .tabs, .no-print, .notice, .btn { display: none !important; }
+      body { background: #fff; }
+      .wrap { max-width: none; padding: 0; }
+      .card { border: 0; box-shadow: none; padding: 0; margin: 0; }
+      .print-only { display: block !important; }
+      .screen-only { display: none !important; }
+    }
+
+    .sheet { font-family: 'Noto Sans JP', serif; color: #111; font-size: 12px; }
+    .sheet h2 { text-align: center; letter-spacing: .6em; font-size: 22px; margin: .4rem 0 1rem; }
+    .sheet table.form { width: 100%; border-collapse: collapse; }
+    .sheet td, .sheet th { border: 1px solid #222; padding: 4px 6px; }
+    .sheet .head td { height: 28px; }
+    .right { text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="bar no-print">
+    <div>
+      <div class="brand">FLTOUR エフアイ</div>
+      <h1>運転日報管理</h1>
+    </div>
+    <div class="tabs">
+      <button class="tab on" data-tab="list">日报</button>
+      <button class="tab" data-tab="people">乘务员 / 车辆</button>
+      <button class="tab" data-tab="logs">修改记录（仅后台）</button>
+      <a class="tab" href="index.html" style="text-decoration:none">入口</a>
+    </div>
+  </div>
+  <div class="wrap" id="app"></div>
+  <script src="app.js"></script>
+  <script>
+    let state = Nikki.load();
+    let tab = 'list';
+    let openId = '';
+
+    const $app = document.getElementById('app');
+    document.querySelectorAll('.tab[data-tab]').forEach((b) => {
+      b.onclick = () => {
+        tab = b.dataset.tab;
+        document.querySelectorAll('.tab[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
+        render();
+      };
+    });
+
+    function reload() { state = Nikki.load(); }
+
+    function render() {
+      reload();
+      if (tab === 'people') return renderPeople();
+      if (tab === 'logs') return renderLogs();
+      if (openId) return renderEdit(openId);
+      renderList();
+    }
+
+    function renderList() {
+      const rows = [...state.reports].sort((a, b) => (b.date + b.submittedAt).localeCompare(a.date + a.submittedAt));
+      $app.innerHTML = `
+        <div class="notice">打印件给陆运局看，页面上不显示「已修改」。改痕只在「修改记录」后台。保存三年（打印或电脑存档）。</div>
+        <div class="card">
+          <table>
+            <thead><tr><th>日期</th><th>乗務員</th><th>車両</th><th>走行km</th><th>空車km</th><th>状态</th><th></th></tr></thead>
+            <tbody>
+              ${rows.map((r) => `<tr>
+                <td>${r.date}</td>
+                <td>${Nikki.driverName(state, r.driverId)}</td>
+                <td>${Nikki.vehiclePlate(state, r.vehicleId)}</td>
+                <td>${Nikki.distanceKm(r) || '—'}</td>
+                <td>${r.emptyKm || '—'}</td>
+                <td>${r.status === 'submitted' ? '<span class="pill ok">已提交</span>' : '<span class="pill draft">草稿</span>'}</td>
+                <td><button class="btn ghost" data-open="${r.id}">打开</button></td>
+              </tr>`).join('') || '<tr><td colspan="7" class="muted">还没有日报</td></tr>'}
+            </tbody>
+          </table>
+        </div>`;
+      $app.querySelectorAll('[data-open]').forEach((b) => b.onclick = () => { openId = b.dataset.open; render(); });
+    }
+
+    function renderPeople() {
+      $app.innerHTML = `
+        <div class="g2">
+          <div class="card">
+            <h3>乗務員名</h3>
+            <p class="muted" style="margin:.3rem 0 .7rem">下拉里用这些名字，可追加/删除。</p>
+            <div id="drivers">${state.drivers.map((d) => `
+              <div class="list-item" data-did="${d.id}">
+                <input value="${d.name}">
+                <button class="btn ghost" data-del-d="${d.id}">删</button>
+              </div>`).join('')}</div>
+            <div class="row" style="margin-top:.7rem">
+              <input id="newDriver" placeholder="新乘务员名">
+              <button class="btn" id="addDriver">追加</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>車両番号</h3>
+            <p class="muted" style="margin:.3rem 0 .7rem">王鵬那辆中间被聊天截图挡住了，先占位，改成真番号即可。</p>
+            <div id="vehicles">${state.vehicles.map((v) => `
+              <div class="list-item" data-vid="${v.id}">
+                <input value="${v.plate}">
+                <button class="btn ghost" data-del-v="${v.id}">删</button>
+              </div>`).join('')}</div>
+            <div class="row" style="margin-top:.7rem">
+              <input id="newVehicle" placeholder="なにわ330…">
+              <button class="btn" id="addVehicle">追加</button>
+            </div>
+          </div>
+        </div>`;
+      $app.querySelector('#addDriver').onclick = () => {
+        const n = $app.querySelector('#newDriver').value.trim();
+        if (!n) return;
+        state.drivers.push({ id: Nikki.uid('d'), name: n });
+        Nikki.save(state); render();
+      };
+      $app.querySelector('#addVehicle').onclick = () => {
+        const n = $app.querySelector('#newVehicle').value.trim();
+        if (!n) return;
+        state.vehicles.push({ id: Nikki.uid('v'), plate: n });
+        Nikki.save(state); render();
+      };
+      $app.querySelectorAll('[data-did] input').forEach((inp) => {
+        inp.onchange = () => {
+          const d = state.drivers.find((x) => x.id === inp.parentElement.dataset.did);
+          if (d) { d.name = inp.value.trim(); Nikki.save(state); }
+        };
+      });
+      $app.querySelectorAll('[data-vid] input').forEach((inp) => {
+        inp.onchange = () => {
+          const v = state.vehicles.find((x) => x.id === inp.parentElement.dataset.vid);
+          if (v) { v.plate = inp.value.trim(); Nikki.save(state); }
+        };
+      });
+      $app.querySelectorAll('[data-del-d]').forEach((b) => b.onclick = () => {
+        state.drivers = state.drivers.filter((x) => x.id !== b.dataset.delD);
+        Nikki.save(state); render();
+      });
+      $app.querySelectorAll('[data-del-v]').forEach((b) => b.onclick = () => {
+        state.vehicles = state.vehicles.filter((x) => x.id !== b.dataset.delV);
+        Nikki.save(state); render();
+      });
+    }
+
+    function renderLogs() {
+      const rows = state.logs || [];
+      $app.innerHTML = `
+        <div class="notice">这份列表只给公司看，不进打印件，也不给司机看。</div>
+        <div class="card">
+          <table>
+            <thead><tr><th>时间</th><th>日报</th><th>谁</th><th>字段</th><th>从</th><th>到</th></tr></thead>
+            <tbody>
+              ${rows.map((l) => {
+                const r = state.reports.find((x) => x.id === l.reportId);
+                const who = r ? Nikki.driverName(state, r.driverId) + ' ' + (r.date || '') : l.reportId;
+                return `<tr>
+                  <td>${(l.at || '').replace('T', ' ').slice(0, 16)}</td>
+                  <td>${who}</td>
+                  <td>${l.who || ''}</td>
+                  <td>${l.field || ''}</td>
+                  <td>${l.from || ''}</td>
+                  <td>${l.to || ''}</td>
+                </tr>`;
+              }).join('') || '<tr><td colspan="6" class="muted">暂无修改</td></tr>'}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    function hm(h, m) {
+      const hs = Nikki.hours().map((x) => `<option ${x === h ? 'selected' : ''}>${x}</option>`).join('');
+      const ms = Nikki.mins().map((x) => `<option ${x === m ? 'selected' : ''}>${x}</option>`).join('');
+      return `<div class="g2"><select data-k="H">${hs}</select><select data-k="M">${ms}</select></div>`;
+    }
+
+    function renderEdit(id) {
+      const r = state.reports.find((x) => x.id === id);
+      if (!r) { openId = ''; return renderList(); }
+      const dOpts = state.drivers.map((d) => `<option value="${d.id}" ${d.id === r.driverId ? 'selected' : ''}>${d.name}</option>`).join('');
+      const vOpts = state.vehicles.map((v) => `<option value="${v.id}" ${v.id === r.vehicleId ? 'selected' : ''}>${v.plate}</option>`).join('');
+      const dist = Nikki.distanceKm(r);
+      $app.innerHTML = `
+        <div class="no-print" style="display:flex;gap:.5rem;margin-bottom:.8rem;flex-wrap:wrap">
+          <button class="btn ghost" id="back">← 列表</button>
+          <button class="btn gold" id="save">保存（不显示改痕）</button>
+          <button class="btn" id="print">打印 / 存档</button>
+          <span class="muted">邮件通知：初版先在本机保存。提交时提示已发给负责人。</span>
+        </div>
+        <div class="card screen-only">
+          <div class="g3">
+            <div><label>日期</label><input type="date" id="date" value="${r.date}"></div>
+            <div><label>乗務員</label><select id="driverId">${dOpts}</select></div>
+            <div><label>車両番号</label><select id="vehicleId">${vOpts}</select></div>
+            <div><label>運行管理者</label><input id="manager" value="${r.manager || ''}"></div>
+            <div><label>運行補助者</label><input id="assistant" value="${r.assistant || ''}"></div>
+            <div><label>差引走行距離</label><input value="${dist || ''} km" disabled></div>
+          </div>
+          <div class="g2" style="margin-top:.6rem">
+            <div><label>出库地点 / 时:分</label><input id="startPlace" value="${r.startPlace || '車庫'}">${hm(r.startHour, r.startMin).replace('data-k="H"', 'id="startHour"').replace('data-k="M"', 'id="startMin"')}</div>
+            <div><label>回库地点 / 时:分</label><input id="endPlace" value="${r.endPlace || '車庫'}">${hm(r.endHour, r.endMin).replace('data-k="H"', 'id="endHour"').replace('data-k="M"', 'id="endMin"')}</div>
+          </div>
+          <div class="g3" style="margin-top:.6rem">
+            <div><label>開始メーター km</label><input id="meterStart" value="${r.meterStart || ''}"></div>
+            <div><label>終了メーター km</label><input id="meterEnd" value="${r.meterEnd || ''}"></div>
+            <div><label>空車距離 km ※必須</label><input id="emptyKm" value="${r.emptyKm || ''}"></div>
+          </div>
+          <label style="margin-top:.8rem">休息</label>
+          ${(r.rests || []).map((x, i) => `<div class="g3" style="margin-bottom:.4rem">
+            <input data-rest="${i}" data-f="place" value="${x.place || ''}" placeholder="地点">
+            <input data-rest="${i}" data-f="from" value="${x.from || ''}" placeholder="开始 08:00">
+            <input data-rest="${i}" data-f="to" value="${x.to || ''}" placeholder="结束 08:40">
+          </div>`).join('')}
+          <label>主な経過地</label>
+          <table>
+            <thead><tr><th>出発</th><th>乗車場所</th><th>人数</th><th>到着場所</th><th>到着</th><th>空車/待機分</th></tr></thead>
+            <tbody>
+              ${(r.trips || []).map((t, i) => `<tr>
+                <td><input data-trip="${i}" data-f="depart" value="${t.depart || ''}"></td>
+                <td><input data-trip="${i}" data-f="pickup" value="${t.pickup || ''}"></td>
+                <td><select data-trip="${i}" data-f="pax">${['',...Nikki.paxOptions()].map((p) => `<option ${p === t.pax ? 'selected' : ''}>${p}</option>`).join('')}</select></td>
+                <td><input data-trip="${i}" data-f="dropoff" value="${t.dropoff || ''}"></td>
+                <td><input data-trip="${i}" data-f="arrive" value="${t.arrive || ''}"></td>
+                <td><input data-trip="${i}" data-f="wait" value="${t.wait || ''}"></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          <label>異常な状況</label><textarea id="accident">${r.accident || ''}</textarea>
+          <label>運行指示の変更</label><textarea id="instruction">${r.instruction || ''}</textarea>
+        </div>
+        <div class="print-only sheet" id="sheet">${printHtml(r)}</div>
+      `;
+      $app.querySelector('#back').onclick = () => { openId = ''; render(); };
+      $app.querySelector('#print').onclick = () => window.print();
+      $app.querySelector('#save').onclick = () => saveEdit(r);
+    }
+
+    function saveEdit(before) {
+      const after = { ...before, rests: [...(before.rests || [])], trips: [...(before.trips || [])].map((t) => ({ ...t })) };
+      after.date = $app.querySelector('#date').value;
+      after.driverId = $app.querySelector('#driverId').value;
+      after.vehicleId = $app.querySelector('#vehicleId').value;
+      after.manager = $app.querySelector('#manager').value;
+      after.assistant = $app.querySelector('#assistant').value;
+      after.startPlace = $app.querySelector('#startPlace').value;
+      after.startHour = $app.querySelector('#startHour').value;
+      after.startMin = $app.querySelector('#startMin').value;
+      after.endPlace = $app.querySelector('#endPlace').value;
+      after.endHour = $app.querySelector('#endHour').value;
+      after.endMin = $app.querySelector('#endMin').value;
+      after.meterStart = $app.querySelector('#meterStart').value;
+      after.meterEnd = $app.querySelector('#meterEnd').value;
+      after.emptyKm = $app.querySelector('#emptyKm').value;
+      after.accident = $app.querySelector('#accident').value;
+      after.instruction = $app.querySelector('#instruction').value;
+      $app.querySelectorAll('[data-rest]').forEach((el) => {
+        const i = Number(el.dataset.rest);
+        after.rests[i] = after.rests[i] || Nikki.emptyRest();
+        after.rests[i][el.dataset.f] = el.value;
+      });
+      $app.querySelectorAll('[data-trip]').forEach((el) => {
+        const i = Number(el.dataset.trip);
+        after.trips[i] = after.trips[i] || Nikki.emptyTrip();
+        after.trips[i][el.dataset.f] = el.value;
+      });
+      const diffs = Nikki.diffFields(before, after);
+      diffs.forEach((d) => {
+        state.logs.unshift({ id: Nikki.uid('l'), reportId: after.id, at: new Date().toISOString(), who: '管理者', ...d });
+      });
+      Nikki.upsertReport(state, after);
+      alert(diffs.length ? '已保存。打印件上看不出改过。改痕在「修改记录」。' : '没有改动。');
+      openId = after.id;
+      render();
+    }
+
+    function printHtml(r) {
+      const ymd = Nikki.reiwaParts(r.date);
+      const dist = Nikki.distanceKm(r);
+      const trips = (r.trips || []).concat(Array(Math.max(0, 6 - (r.trips || []).length)).fill(Nikki.emptyTrip()));
+      const restRows = (r.rests || []).map((x) => `<tr><td>${x.place || ''}</td><td>${x.from || ''} ～ ${x.to || ''}</td></tr>`).join('');
+      return `
+        <h2>運 転 日 報</h2>
+        <table class="form">
+          <tr class="head">
+            <td style="width:18%">運転者氏名</td><td style="width:32%">${Nikki.driverName(state, r.driverId)}</td>
+            <td style="width:18%">運行管理者</td><td>${r.manager || ''}</td>
+            <td style="width:14%">運行補助者</td><td>${r.assistant || ''}</td>
+          </tr>
+          <tr class="head">
+            <td colspan="2"></td>
+            <td>自動車登録番号</td><td colspan="3">${Nikki.vehiclePlate(state, r.vehicleId)}</td>
+          </tr>
+        </table>
+        <table class="form" style="margin-top:8px">
+          <tr>
+            <td>乗務開始地点</td><td>${r.startPlace || '車庫'}</td>
+            <td>日時 令和 ${ymd.y} 年 ${ymd.m} 月 ${ymd.d} 日</td>
+            <td>${r.startHour || ''} 時 ${r.startMin || ''} 分</td>
+          </tr>
+          <tr>
+            <td>乗務終了地点</td><td>${r.endPlace || '車庫'}</td>
+            <td>日時 令和 ${ymd.y} 年 ${ymd.m} 月 ${ymd.d} 日</td>
+            <td>${r.endHour || ''} 時 ${r.endMin || ''} 分</td>
+          </tr>
+        </table>
+        <table class="form" style="margin-top:8px">
+          <tr>
+            <td rowspan="3" style="width:12%">乗務した距離</td>
+            <td>乗務終了メーター</td><td class="right">${r.meterEnd || ''} km</td>
+            <td rowspan="3">空車距離 ※必須記入<br><b>${r.emptyKm || ''} km</b></td>
+            <td rowspan="3">休憩・睡眠の地点及び時間</td>
+            <td colspan="2"><table class="form">${restRows}</table></td>
+          </tr>
+          <tr><td>乗務開始メーター</td><td class="right">${r.meterStart || ''} km</td></tr>
+          <tr><td>差引走行距離</td><td class="right">${dist || ''} km</td></tr>
+        </table>
+        <table class="form" style="margin-top:8px">
+          <tr>
+            <th style="width:12%">主な経過地</th>
+            <th>出発時間</th><th>乗車場所</th><th>乗車人数</th><th>到着場所</th><th>到着時間</th><th>空車・待機時間</th>
+          </tr>
+          ${trips.map((t, i) => `<tr>
+            <td>${i === trips.length - 1 ? '車庫（乗務終了）' : ''}</td>
+            <td>${t.depart || ''}</td><td>${t.pickup || ''}</td><td>${t.pax || ''}</td>
+            <td>${t.dropoff || ''}</td><td>${t.arrive || ''}</td><td>${t.wait || ''}</td>
+          </tr>`).join('')}
+        </table>
+        <p style="margin:.35rem 0;font-size:11px">※乗車人数は大人・子供の総数の記入でもよい。</p>
+        <table class="form">
+          <tr><td style="width:28%">交通事故又は著しい運行の遅延その他異常な状況が発生した場合の概要及び原因</td><td>${(r.accident || '').replace(/</g,'')}</td></tr>
+          <tr><td>運行指示書を必要としない運行から必要とする運行に変更した場合にはその内容</td><td>${(r.instruction || '').replace(/</g,'')}</td></tr>
+        </table>
+      `;
+    }
+
+    render();
+  </script>
+</body>
+</html>

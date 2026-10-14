@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>運転日報 · 司机</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --gold: #C9A961; --cream: #FAF8F3; --card: #fff; --border: #E8E5DF;
+      --dark: #2C2C2C; --mid: #4A4A4A; --light: #7A7A7A; --ok: #1E8E4F; --danger: #DC3545;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: var(--cream); color: var(--dark); font-family: 'Noto Sans SC','Noto Sans JP',sans-serif; }
+    body { min-height: 100dvh; padding: 0 0 6.5rem; }
+    .top {
+      position: sticky; top: 0; z-index: 20;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: .85rem 1rem .75rem; padding-top: max(.85rem, env(safe-area-inset-top));
+    }
+    .brand { font-size: .72rem; letter-spacing: .12em; color: var(--gold); font-weight: 700; }
+    .top h1 { font-size: 1.15rem; font-weight: 700; margin-top: .15rem; }
+    .sub { font-size: .78rem; color: var(--light); margin-top: .15rem; }
+    .wrap { padding: .9rem 1rem 1.5rem; max-width: 520px; margin: 0 auto; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1rem; margin-bottom: .75rem;
+    }
+    .card h2 {
+      font-size: .72rem; font-weight: 700; color: var(--light);
+      letter-spacing: .06em; text-transform: uppercase; margin-bottom: .75rem;
+    }
+    label { display: block; font-size: .82rem; font-weight: 600; color: var(--mid); margin: .55rem 0 .28rem; }
+    label .jp { font-weight: 400; color: var(--light); margin-left: .25rem; font-size: .75rem; }
+    input, select, textarea {
+      width: 100%; font-size: 16px; font-family: inherit;
+      padding: .78rem .8rem; border: 1.5px solid var(--border); border-radius: 10px;
+      background: var(--cream); color: var(--dark); appearance: none;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); background: #fff; }
+    textarea { min-height: 4.2rem; resize: vertical; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+    .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .45rem; }
+    .hint { font-size: .75rem; color: var(--light); margin-top: .4rem; }
+    .km { font-size: 1.05rem; font-weight: 700; padding: .6rem 0 .2rem; }
+    .km span { color: var(--gold); }
+    .trip {
+      border: 1px solid var(--border); border-radius: 12px; padding: .75rem; margin-bottom: .55rem; background: #fff;
+    }
+    .trip-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; }
+    .trip-h b { font-size: .85rem; }
+    .ghost {
+      background: none; border: 1px solid var(--border); color: var(--mid);
+      border-radius: 8px; padding: .28rem .55rem; font-size: .75rem; cursor: pointer;
+    }
+    .add {
+      width: 100%; padding: .75rem; border: 1.5px dashed var(--gold); background: rgba(201,169,97,.08);
+      color: #8a6d28; border-radius: 10px; font-weight: 600; font-size: .9rem; cursor: pointer;
+    }
+    .foot {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+      background: var(--card); border-top: 1px solid var(--border);
+      padding: .7rem 1rem calc(.7rem + env(safe-area-inset-bottom));
+    }
+    .btn {
+      width: 100%; max-width: 520px; margin: 0 auto; display: block;
+      background: var(--dark); color: #fff; border: 0; border-radius: 12px;
+      padding: .95rem 1rem; font-size: 1rem; font-weight: 700; cursor: pointer;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.ok { background: var(--ok); }
+    .toast {
+      display: none; position: fixed; left: 50%; bottom: 6.2rem; transform: translateX(-50%);
+      background: var(--dark); color: #fff; padding: .55rem 1rem; border-radius: 999px; font-size: .82rem; z-index: 40;
+    }
+    .lock {
+      background: #eef7f1; border: 1px solid #cde8d6; color: #1E8E4F;
+      border-radius: 10px; padding: .7rem .85rem; font-size: .82rem; margin-bottom: .75rem;
+    }
+    .who { display: flex; gap: .85rem; align-items: center; margin-top: .55rem; }
+    .who a { font-size: .78rem; color: var(--gold); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">FLTOUR エフアイ</div>
+    <h1>運転日報</h1>
+    <p class="sub" id="whoLine">一人一天一份 · 当晚提交</p>
+    <div class="who">
+      <a href="index.html">返回入口</a>
+      <a href="#" id="switchDriver">切换司机</a>
+    </div>
+  </header>
+  <main class="wrap" id="app"></main>
+  <div class="foot"><button class="btn" id="submitBtn" type="button">确认提交给公司</button></div>
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+  <script>
+    const $app = document.getElementById('app');
+    const $btn = document.getElementById('submitBtn');
+    const $toast = document.getElementById('toast');
+    let state = Nikki.load();
+    let driverId = sessionStorage.getItem('nikki-driver') || '';
+    let report = null;
+
+    function toast(t) {
+      $toast.textContent = t; $toast.style.display = 'block';
+      setTimeout(() => { $toast.style.display = 'none'; }, 1800);
+    }
+    function locked() { return report && report.status === 'submitted'; }
+
+    function sel(name, val, opts, extra = '') {
+      const o = [`<option value="">请选择</option>`]
+        .concat(opts.map(([v, l]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${l}</option>`));
+      return `<select name="${name}" ${extra}>${o.join('')}</select>`;
+    }
+    function hm(hName, mName, h, m) {
+      const hs = Nikki.hours().map((x) => [x, x]);
+      const ms = Nikki.mins().map((x) => [x, x]);
+      return `<div class="row2">${sel(hName, h, hs)} ${sel(mName, m, ms)}</div>`;
+    }
+    function timeSel(name, val) {
+      const opts = [];
+      Nikki.hours().forEach((h) => Nikki.mins().forEach((m) => {
+        const t = h + ':' + m; opts.push([t, t]);
+      }));
+      return sel(name, val, opts);
+    }
+
+    function switchDriver(e) {
+      if (e) e.preventDefault();
+      sessionStorage.removeItem('nikki-driver');
+      driverId = '';
+      report = null;
+      document.getElementById('whoLine').textContent = '一人一天一份 · 当晚提交';
+      render();
+    }
+    document.getElementById('switchDriver').onclick = switchDriver;
+
+    function renderLogin() {
+      $btn.style.display = 'none';
+      document.getElementById('switchDriver').style.display = 'none';
+      const opts = state.drivers.map((d) => [d.id, d.name]);
+      $app.innerHTML = `
+        <div class="card">
+          <h2>选择乘务员</h2>
+          <label>我是谁 <span class="jp">乗務員名</span></label>
+          ${sel('me', '', opts)}
+          <p class="hint">选好后进入今天的日报。当天不换车。</p>
+        </div>`;
+      $app.querySelector('[name=me]').onchange = (e) => {
+        driverId = e.target.value;
+        sessionStorage.setItem('nikki-driver', driverId);
+        report = Nikki.ensureToday(state, driverId);
+        state = Nikki.load();
+        report = Nikki.findToday(state, driverId);
+        render();
+      };
+    }
+
+    function tripHtml(t, i) {
+      const pax = Nikki.paxOptions().map((x) => [x, x + '人']);
+      return `<div class="trip" data-i="${i}">
+        <div class="trip-h"><b>第 ${i + 1} 趟</b>
+          ${locked() ? '' : `<button class="ghost" type="button" data-del="${i}">删除</button>`}
+        </div>
+        <label>出发时间 <span class="jp">出発時間</span></label>
+        ${timeSel('depart-' + i, t.depart)}
+        <label>上车地点 <span class="jp">乗車場所</span></label>
+        <input name="pickup-${i}" value="${t.pickup || ''}" placeholder="例：なんば">
+        <label>人数 <span class="jp">乗車人数（大人+小孩合计）</span></label>
+        ${sel('pax-' + i, t.pax, pax)}
+        <label>到达地点 <span class="jp">到着場所</span></label>
+        <input name="dropoff-${i}" value="${t.dropoff || ''}" placeholder="例：関西空港">
+        <label>到达时间 <span class="jp">到着時間</span></label>
+        ${timeSel('arrive-' + i, t.arrive)}
+        <label>空车/等待（分钟） <span class="jp">空車・待機時間</span></label>
+        <input name="wait-${i}" inputmode="numeric" value="${t.wait || ''}" placeholder="分钟">
+      </div>`;
+    }
+
+    function render() {
+      if (!driverId) return renderLogin();
+      document.getElementById('switchDriver').style.display = '';
+      $btn.style.display = 'block';
+      const name = Nikki.driverName(state, driverId);
+      document.getElementById('whoLine').textContent = name + ' · ' + report.date + ' · 一人一天一份';
+      const dOpts = state.drivers.map((d) => [d.id, d.name]);
+      const vOpts = state.vehicles.map((v) => [v.id, v.plate]);
+      const dist = Nikki.distanceKm(report);
+      const dis = locked() ? 'disabled' : '';
+      $app.innerHTML = `
+        ${locked() ? `<div class="lock">今天这份已提交。如需改，请公司负责人修改。</div>` : ''}
+        <div class="card">
+          <h2>基本</h2>
+          <label>日期 <span class="jp">日付</span></label>
+          <input type="date" name="date" value="${report.date}" ${dis}>
+          <label>乘务员 <span class="jp">乗務員名</span></label>
+          ${sel('driverId', report.driverId, dOpts, dis)}
+          <label>车辆番号 <span class="jp">自動車登録番号</span></label>
+          ${sel('vehicleId', report.vehicleId, vOpts, dis)}
+        </div>
+        <div class="card">
+          <h2>出库 / 回库</h2>
+          <label>出库地点 <span class="jp">乗務開始地点</span></label>
+          <input name="startPlace" value="${report.startPlace || '車庫'}" ${dis}>
+          <label>出库时间 <span class="jp">24時間</span></label>
+          ${hm('startHour', 'startMin', report.startHour, report.startMin)}
+          <label>回库地点 <span class="jp">乗務終了地点</span></label>
+          <input name="endPlace" value="${report.endPlace || '車庫'}" ${dis}>
+          <label>回库时间</label>
+          ${hm('endHour', 'endMin', report.endHour, report.endMin)}
+        </div>
+        <div class="card">
+          <h2>公里数 ※空车距离必填</h2>
+          <label>开始码表 <span class="jp">乗務開始メーター km</span></label>
+          <input name="meterStart" inputmode="decimal" value="${report.meterStart || ''}" ${dis}>
+          <label>结束码表 <span class="jp">乗務終了メーター km</span></label>
+          <input name="meterEnd" inputmode="decimal" value="${report.meterEnd || ''}" ${dis}>
+          <p class="km">差引走行距離 <span id="dist">${dist || '—'}</span> km</p>
+          <label>空车距离 <span class="jp">空車距離 km ※必須</span></label>
+          <input name="emptyKm" inputmode="decimal" value="${report.emptyKm || ''}" ${dis}>
+        </div>
+        <div class="card">
+          <h2>休息 / 睡眠</h2>
+          ${[0,1,2].map((i) => {
+            const x = report.rests[i] || Nikki.emptyRest();
+            return `<label>地点 ${i+1}</label>
+              <input name="restPlace-${i}" value="${x.place || ''}" placeholder="场所名" ${dis}>
+              <div class="row2">
+                <div><label>从</label>${timeSel('restFrom-'+i, x.from)}</div>
+                <div><label>到</label>${timeSel('restTo-'+i, x.to)}</div>
+              </div>`;
+          }).join('')}
+        </div>
+        <div class="card">
+          <h2>行程 主な経過地</h2>
+          <p class="hint">可一趟趟加。最后一趟回库不用另写，回库时间在上面。</p>
+          <div id="trips">${(report.trips || []).map(tripHtml).join('')}</div>
+          ${locked() ? '' : `<button class="add" type="button" id="addTrip">＋ 加一趟</button>`}
+        </div>
+        <div class="card">
+          <h2>备注</h2>
+          <label>事故 / 严重延误等 <span class="jp">異常な状況</span></label>
+          <textarea name="accident" ${dis}>${report.accident || ''}</textarea>
+          <label>运行指示变更 <span class="jp">運行指示書の変更</span></label>
+          <textarea name="instruction" ${dis}>${report.instruction || ''}</textarea>
+        </div>`;
+      if (locked()) {
+        $app.querySelectorAll('select,input,textarea').forEach((el) => el.disabled = true);
+        $btn.disabled = true;
+        $btn.textContent = '今天已提交';
+        $btn.classList.add('ok');
+      } else {
+        $btn.disabled = false;
+        $btn.textContent = '确认提交给公司';
+        $btn.classList.remove('ok');
+      }
+      bind();
+    }
+
+    function readForm() {
+      const g = (n) => {
+        const el = $app.querySelector(`[name="${n}"]`);
+        return el ? el.value : '';
+      };
+      report.date = g('date') || report.date;
+      report.driverId = g('driverId') || report.driverId;
+      report.vehicleId = g('vehicleId');
+      report.startPlace = g('startPlace');
+      report.startHour = g('startHour');
+      report.startMin = g('startMin');
+      report.endPlace = g('endPlace');
+      report.endHour = g('endHour');
+      report.endMin = g('endMin');
+      report.meterStart = g('meterStart');
+      report.meterEnd = g('meterEnd');
+      report.emptyKm = g('emptyKm');
+      report.accident = g('accident');
+      report.instruction = g('instruction');
+      report.rests = [0,1,2].map((i) => ({
+        place: g('restPlace-' + i), from: g('restFrom-' + i), to: g('restTo-' + i),
+      }));
+      report.trips = [...$app.querySelectorAll('.trip')].map((el, i) => ({
+        depart: g('depart-' + i),
+        pickup: g('pickup-' + i),
+        pax: g('pax-' + i),
+        dropoff: g('dropoff-' + i),
+        arrive: g('arrive-' + i),
+        wait: g('wait-' + i),
+      }));
+      const dist = Nikki.distanceKm(report);
+      const dEl = document.getElementById('dist');
+      if (dEl) dEl.textContent = dist || '—';
+    }
+
+    function persist() {
+      if (locked()) return;
+      readForm();
+      Nikki.upsertReport(state, report);
+      state = Nikki.load();
+    }
+
+    function bind() {
+      $app.oninput = persist;
+      $app.onchange = persist;
+      const add = document.getElementById('addTrip');
+      if (add) add.onclick = () => {
+        persist();
+        report.trips.push(Nikki.emptyTrip());
+        Nikki.upsertReport(state, report);
+        render();
+      };
+      $app.querySelectorAll('[data-del]').forEach((b) => {
+        b.onclick = () => {
+          persist();
+          report.trips.splice(Number(b.dataset.del), 1);
+          if (!report.trips.length) report.trips.push(Nikki.emptyTrip());
+          Nikki.upsertReport(state, report);
+          render();
+        };
+      });
+    }
+
+    $btn.onclick = () => {
+      persist();
+      if (!report.vehicleId) return toast('请选车辆番号');
+      if (!report.emptyKm) return toast('空车距离必填');
+      if (!report.startHour || !report.endHour) return toast('请填出库/回库时间');
+      report.status = 'submitted';
+      report.submittedAt = new Date().toISOString();
+      Nikki.upsertReport(state, report, { who: Nikki.driverName(state, report.driverId), field: '提交', from: '草稿', to: '已提交' });
+      toast('已提交，公司负责人可以查看');
+      render();
+    };
+
+    if (driverId) {
+      report = Nikki.ensureToday(state, driverId);
+      state = Nikki.load();
+      report = Nikki.findToday(state, driverId);
+    }
+    render();
+  </script>
+</body>
+</html>
