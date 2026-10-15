@@ -14,64 +14,93 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: Inter,'Noto Sans SC','Noto Sans JP',sans-serif; background: var(--cream); color: var(--dark); min-height: 100vh; }
     .bar {
-      display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-      background: var(--card); border-bottom: 1px solid var(--border); padding: .85rem 1.25rem;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: .7rem .9rem .75rem;
     }
-    .bar h1 { font-size: 1.05rem; }
-    .brand { font-size: .72rem; letter-spacing: .12em; color: var(--gold); font-weight: 700; }
-    .tabs { display: flex; gap: .4rem; flex-wrap: wrap; }
+    .bar-top { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; }
+    .bar h1 { font-size: 1.05rem; line-height: 1.3; }
+    .brand { font-size: .68rem; letter-spacing: .12em; color: var(--gold); font-weight: 700; }
+    .bar-links { display: flex; gap: .9rem; align-items: center; padding-top: .15rem; flex-shrink: 0; }
+    .bar-links a, .bar-links button {
+      background: none; border: 0; color: var(--gold); font-size: .82rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; text-decoration: none; white-space: nowrap; padding: 0;
+    }
+    .tabs { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .4rem; margin-top: .7rem; }
     .tab {
-      border: 1px solid var(--border); background: var(--cream); border-radius: 8px;
-      padding: .35rem .75rem; font-size: .82rem; font-weight: 600; cursor: pointer; color: var(--mid);
-      white-space: nowrap; flex-shrink: 0;
+      border: 1px solid var(--border); background: var(--cream); border-radius: 10px;
+      padding: .55rem .3rem; font-size: .88rem; font-weight: 600; cursor: pointer; color: var(--mid);
+      white-space: nowrap; text-align: center; font-family: inherit;
     }
     .tab.on { background: var(--gold); color: #fff; border-color: var(--gold); }
-    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .pill { white-space: nowrap; display: inline-block; }
-    .btn { white-space: nowrap; }
-    .m-list { display: none; }
-    .m-item {
-      padding: .85rem 0; border-bottom: 1px solid var(--border);
+    .wrap { max-width: 720px; margin: 0 auto; padding: .85rem .8rem 2.5rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem; margin-bottom: .75rem; }
+    .notice {
+      background: rgba(201,169,97,.1); border: 1px solid rgba(201,169,97,.35); border-radius: 10px;
+      padding: .65rem .8rem; font-size: .78rem; color: var(--mid); margin-bottom: .75rem; line-height: 1.55;
     }
-    .m-item:last-child { border-bottom: 0; }
-    .m-top { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
-    .m-date { font-weight: 600; }
-    .m-name { margin-top: .28rem; font-size: .88rem; word-break: keep-all; }
-    .m-km { margin: .2rem 0 .55rem; font-size: .78rem; color: var(--light); }
-    .notice { word-break: keep-all; overflow-wrap: break-word; line-height: 1.6; }
-    .wrap { max-width: 1100px; margin: 0 auto; padding: 1.1rem 1rem 3rem; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem; margin-bottom: 1rem; }
-    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    th { text-align: left; color: var(--light); font-size: .72rem; letter-spacing: .04em; padding: .45rem .4rem; border-bottom: 1px solid var(--border); }
-    td { padding: .55rem .4rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    .pill { font-size: .72rem; font-weight: 700; border-radius: 999px; padding: .12rem .5rem; }
+    .pill {
+      font-size: .72rem; font-weight: 700; border-radius: 999px; padding: .18rem .55rem;
+      white-space: nowrap; display: inline-block;
+    }
     .pill.ok { background: #e7f6ec; color: var(--ok); }
     .pill.draft { background: #f3f1ea; color: var(--light); }
     .btn {
-      border: 0; background: var(--dark); color: #fff; border-radius: 8px;
-      padding: .42rem .75rem; font-size: .8rem; font-weight: 600; cursor: pointer;
+      border: 0; background: var(--dark); color: #fff; border-radius: 10px;
+      padding: .7rem 1rem; font-size: .9rem; font-weight: 600; cursor: pointer;
+      white-space: nowrap; font-family: inherit;
     }
     .btn.ghost { background: #fff; color: var(--mid); border: 1px solid var(--border); }
     .btn.gold { background: var(--gold); }
     .btn.danger { background: var(--danger); }
     label { display: block; font-size: .78rem; font-weight: 600; color: var(--mid); margin: .5rem 0 .25rem; }
     input, select, textarea {
-      width: 100%; font-size: .9rem; font-family: inherit;
-      padding: .55rem .65rem; border: 1.5px solid var(--border); border-radius: 8px; background: var(--cream);
+      width: 100%; font-size: 16px; font-family: inherit;
+      padding: .7rem .75rem; border: 1.5px solid var(--border); border-radius: 8px; background: var(--cream);
     }
     input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); background: #fff; }
     textarea { min-height: 4rem; }
-    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
-    .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .6rem; }
-    .notice { background: rgba(201,169,97,.1); border: 1px solid rgba(201,169,97,.35); border-radius: 10px; padding: .7rem .9rem; font-size: .82rem; color: var(--mid); margin-bottom: 1rem; word-break: keep-all; overflow-wrap: break-word; line-height: 1.6; }
-    .row { display: flex; gap: .5rem; align-items: center; }
-    .list-item { display: flex; gap: .5rem; align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--border); }
-    .list-item input { flex: 1; }
+    .g2, .g3 { display: grid; grid-template-columns: 1fr; gap: .6rem; }
+    .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .list-item { display: flex; gap: .5rem; align-items: center; padding: .45rem 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+    .list-item input, .list-item select { flex: 1; min-width: 8rem; }
     .muted { color: var(--light); font-size: .78rem; }
     .print-only { display: none; }
     .err { color: var(--danger); font-size: .82rem; margin-top: .4rem; }
-    .login-box { max-width: 380px; margin: 3rem auto; }
+    .login-box { max-width: 380px; margin: 1.5rem auto; }
     .test-hint { margin-top: .85rem; color: #c9c4bb; font-size: .75rem; font-weight: 400; line-height: 1.65; cursor: pointer; }
+
+    .report {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 1rem 1.05rem; margin-bottom: .7rem;
+    }
+    .report-hd { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+    .report-date { font-weight: 700; font-size: .95rem; white-space: nowrap; }
+    .report-name { font-size: 1.15rem; font-weight: 700; margin-top: .45rem; white-space: nowrap; }
+    .report-plate { font-size: .92rem; color: var(--mid); margin-top: .12rem; white-space: nowrap; overflow-x: auto; }
+    .report-km { font-size: .78rem; color: var(--light); margin: .4rem 0 .75rem; white-space: nowrap; }
+    .report .btn { width: 100%; }
+
+    .log-item { padding: .75rem 0; border-bottom: 1px solid var(--border); }
+    .log-item:last-child { border-bottom: 0; }
+    .log-item .when { font-size: .75rem; color: var(--light); }
+    .log-item .what { margin-top: .2rem; font-size: .88rem; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th { text-align: left; color: var(--light); font-size: .72rem; padding: .45rem .4rem; border-bottom: 1px solid var(--border); }
+    td { padding: .55rem .4rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .table-wrap { overflow-x: auto; }
+
+    @media (min-width: 1024px) {
+      .bar { padding: .85rem 1.25rem; }
+      .tabs { display: flex; max-width: 360px; }
+      .tab { padding: .4rem .9rem; flex: 1; }
+      .wrap { max-width: 960px; padding: 1.1rem 1rem 3rem; }
+      .g2 { grid-template-columns: 1fr 1fr; }
+      .g3 { grid-template-columns: 1fr 1fr 1fr; }
+      .report .btn { width: auto; }
+      .reports { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+      .report { margin-bottom: 0; }
+    }
 
     @media print {
       .bar, .tabs, .no-print, .notice, .btn { display: none !important; }
@@ -88,33 +117,24 @@
     .sheet td, .sheet th { border: 1px solid #222; padding: 4px 6px; }
     .sheet .head td { height: 28px; }
     .right { text-align: right; }
-
-    @media (max-width: 720px) {
-      .bar { flex-direction: column; align-items: stretch; gap: .65rem; padding: .7rem .9rem; }
-      .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: .15rem; }
-      .tab { padding: .32rem .55rem; font-size: .78rem; }
-      .wrap { padding: .85rem .8rem 2.5rem; }
-      .card { padding: .85rem; }
-      .g2, .g3 { grid-template-columns: 1fr; }
-      .desk-table { display: none; }
-      .m-list { display: block; }
-      .login-box { margin: 1.5rem auto; }
-      .row { flex-wrap: wrap; }
-    }
   </style>
 </head>
 <body>
   <div class="bar no-print">
-    <div>
-      <div class="brand">FLTOUR エフアイ</div>
-      <h1>運転日報管理</h1>
+    <div class="bar-top">
+      <div>
+        <div class="brand">FLTOUR エフアイ</div>
+        <h1>運転日報管理</h1>
+      </div>
+      <div class="bar-links">
+        <a href="index.html">入口</a>
+        <button type="button" id="logoutBtn">退出</button>
+      </div>
     </div>
     <div class="tabs">
       <button class="tab on" data-tab="list">日报</button>
       <button class="tab" data-tab="people">人员</button>
-      <button class="tab" data-tab="logs">修改记录</button>
-      <a class="tab" href="index.html" style="text-decoration:none">入口</a>
-      <button class="tab" type="button" id="logoutBtn">退出</button>
+      <button class="tab" data-tab="logs">记录</button>
     </div>
   </div>
   <div class="wrap" id="app"></div>
@@ -194,35 +214,18 @@
     function renderList() {
       const rows = [...state.reports].sort((a, b) => (b.date + b.submittedAt).localeCompare(a.date + a.submittedAt));
       $app.innerHTML = `
-        <div class="notice">打印件给陆运局看，页面上不显示「已修改」。改痕只在「修改记录」后台。保存三年（打印或电脑存档）。</div>
-        <div class="card">
-          <div class="table-wrap desk-table">
-          <table>
-            <thead><tr><th>日期</th><th>乗務員</th><th>車両</th><th>走行km</th><th>空車km</th><th>状态</th><th></th></tr></thead>
-            <tbody>
-              ${rows.map((r) => `<tr>
-                <td>${r.date}</td>
-                <td>${Nikki.driverName(state, r.driverId)}</td>
-                <td>${Nikki.vehiclePlate(state, r.vehicleId)}</td>
-                <td>${Nikki.distanceKm(r) || '—'}</td>
-                <td>${r.emptyKm || '—'}</td>
-                <td>${r.status === 'submitted' ? '<span class="pill ok">已提交</span>' : '<span class="pill draft">草稿</span>'}</td>
-                <td><button class="btn ghost" data-open="${r.id}">打开</button></td>
-              </tr>`).join('') || '<tr><td colspan="7" class="muted">还没有日报</td></tr>'}
-            </tbody>
-          </table>
-          </div>
-          <div class="m-list">
-            ${rows.map((r) => `<div class="m-item">
-              <div class="m-top">
-                <span class="m-date">${r.date}</span>
-                ${r.status === 'submitted' ? '<span class="pill ok">已提交</span>' : '<span class="pill draft">草稿</span>'}
-              </div>
-              <div class="m-name">${Nikki.driverName(state, r.driverId)}　${Nikki.vehiclePlate(state, r.vehicleId)}</div>
-              <div class="m-km">走行 ${Nikki.distanceKm(r) || '—'} km　空車 ${r.emptyKm || '—'} km</div>
-              <button class="btn ghost" data-open="${r.id}">打开</button>
-            </div>`).join('') || '<p class="muted">还没有日报</p>'}
-          </div>
+        <div class="notice">打印件不显示改痕。改过的内容只在「记录」里。</div>
+        <div class="reports">
+          ${rows.map((r) => `<article class="report">
+            <div class="report-hd">
+              <span class="report-date">${r.date}</span>
+              ${r.status === 'submitted' ? '<span class="pill ok">已提交</span>' : '<span class="pill draft">草稿</span>'}
+            </div>
+            <div class="report-name">${Nikki.driverName(state, r.driverId) || '—'}</div>
+            <div class="report-plate">${Nikki.vehiclePlate(state, r.vehicleId) || '—'}</div>
+            <div class="report-km">走行 ${Nikki.distanceKm(r) || '—'} km　空車 ${r.emptyKm || '—'} km</div>
+            <button class="btn ghost" data-open="${r.id}" type="button">打开</button>
+          </article>`).join('') || '<p class="muted">还没有日报</p>'}
         </div>`;
       $app.querySelectorAll('[data-open]').forEach((b) => b.onclick = () => { openId = b.dataset.open; render(); });
     }
@@ -307,27 +310,16 @@
     function renderLogs() {
       const rows = state.logs || [];
       $app.innerHTML = `
-        <div class="notice">这份列表只给公司看，不进打印件，也不给司机看。</div>
+        <div class="notice">只给公司看，不进打印件，也不给司机看。</div>
         <div class="card">
-          <div class="table-wrap">
-          <table>
-            <thead><tr><th>时间</th><th>日报</th><th>谁</th><th>字段</th><th>从</th><th>到</th></tr></thead>
-            <tbody>
-              ${rows.map((l) => {
-                const r = state.reports.find((x) => x.id === l.reportId);
-                const who = r ? Nikki.driverName(state, r.driverId) + ' ' + (r.date || '') : l.reportId;
-                return `<tr>
-                  <td>${(l.at || '').replace('T', ' ').slice(0, 16)}</td>
-                  <td>${who}</td>
-                  <td>${l.who || ''}</td>
-                  <td>${l.field || ''}</td>
-                  <td>${l.from || ''}</td>
-                  <td>${l.to || ''}</td>
-                </tr>`;
-              }).join('') || '<tr><td colspan="6" class="muted">暂无修改</td></tr>'}
-            </tbody>
-          </table>
-          </div>
+          ${rows.map((l) => {
+            const r = state.reports.find((x) => x.id === l.reportId);
+            const who = r ? Nikki.driverName(state, r.driverId) + ' ' + (r.date || '') : l.reportId;
+            return `<div class="log-item">
+              <div class="when">${(l.at || '').replace('T', ' ').slice(0, 16)}　${who}</div>
+              <div class="what">${l.who || ''} · ${l.field || ''}：${l.from || ''} → ${l.to || ''}</div>
+            </div>`;
+          }).join('') || '<p class="muted">暂无修改</p>'}
         </div>`;
     }
 
