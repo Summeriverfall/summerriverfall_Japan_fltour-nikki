@@ -80,6 +80,17 @@
     }
     .who { display: flex; gap: .85rem; align-items: center; margin-top: .55rem; }
     .who a { font-size: .78rem; color: var(--gold); text-decoration: none; }
+    .err { color: var(--danger); font-size: .82rem; margin-top: .55rem; min-height: 1.1em; }
+    .save-line { font-size: .72rem; color: var(--ok); margin-top: .12rem; min-height: 1em; }
+    .save-line.warn { color: #b8860b; }
+    .test-hint { margin-top: .35rem; color: #c9c4bb; font-size: .75rem; font-weight: 400; line-height: 1.65; }
+    .test-hint p { margin: 0 0 .35rem; }
+    .test-row {
+      display: flex; justify-content: space-between; align-items: center; gap: .5rem;
+      padding: .08rem 0; cursor: pointer; color: inherit;
+    }
+    .test-row b { font-weight: 400; white-space: nowrap; }
+    .test-row code { font-family: inherit; font-size: inherit; color: inherit; user-select: all; }
   </style>
 </head>
 <body>
@@ -87,9 +98,10 @@
     <div class="brand">FLTOUR エフアイ</div>
     <h1>運転日報</h1>
     <p class="sub" id="whoLine">一人一天一份 · 当晚提交</p>
+    <p class="save-line" id="saveLine"></p>
     <div class="who">
       <a href="index.html">返回入口</a>
-      <a href="#" id="switchDriver">切换司机</a>
+      <a href="#" id="switchDriver">退出登录</a>
     </div>
   </header>
   <main class="wrap" id="app"></main>
@@ -97,12 +109,20 @@
   <div class="toast" id="toast"></div>
   <script src="app.js"></script>
   <script>
+    const SHOW_TEST_PLATES = true; // 正式版改 false，或整块删掉
     const $app = document.getElementById('app');
     const $btn = document.getElementById('submitBtn');
+    const $foot = document.querySelector('.foot');
     const $toast = document.getElementById('toast');
+    const $save = document.getElementById('saveLine');
     let state = Nikki.load();
     let driverId = sessionStorage.getItem('nikki-driver') || '';
     let report = null;
+
+    Nikki.onSaveStatus = (t) => {
+      $save.textContent = t || '';
+      $save.classList.toggle('warn', /未连|失败/.test(t || ''));
+    };
 
     function toast(t) {
       $toast.textContent = t; $toast.style.display = 'block';
@@ -130,33 +150,72 @@
 
     function switchDriver(e) {
       if (e) e.preventDefault();
-      sessionStorage.removeItem('nikki-driver');
+      Nikki.flush();
+      Nikki.logout();
       driverId = '';
       report = null;
       document.getElementById('whoLine').textContent = '一人一天一份 · 当晚提交';
-      render();
+      $save.textContent = '';
+      renderLogin();
     }
     document.getElementById('switchDriver').onclick = switchDriver;
 
-    function renderLogin() {
+    async function renderLogin() {
       $btn.style.display = 'none';
+      if ($foot) $foot.style.display = 'none';
       document.getElementById('switchDriver').style.display = 'none';
-      const opts = state.drivers.map((d) => [d.id, d.name]);
+      const drivers = await Nikki.publicDrivers();
+      const opts = drivers.map((d) => [d.id, d.name]);
+      const testHtml = SHOW_TEST_PLATES ? `
+        <div class="test-hint">
+          <p>测试用 · 点一行复制番号（正式版删除）</p>
+          ${Nikki.testRoster().map((x) => `
+            <div class="test-row" data-id="${x.id}" data-plate="${x.plate}">
+              <b>${x.name}</b><code>${x.plate}</code>
+            </div>`).join('')}
+        </div>` : '';
       $app.innerHTML = `
         <div class="card">
-          <h2>选择乘务员</h2>
-          <label>我是谁 <span class="jp">乗務員名</span></label>
+          <h2>登录</h2>
+          <label>乘务员 <span class="jp">乗務員名</span></label>
           ${sel('me', '', opts)}
-          <p class="hint">选好后进入今天的日报。当天不换车。</p>
-        </div>`;
-      $app.querySelector('[name=me]').onchange = (e) => {
-        driverId = e.target.value;
-        sessionStorage.setItem('nikki-driver', driverId);
-        report = Nikki.ensureToday(state, driverId);
-        state = Nikki.load();
-        report = Nikki.findToday(state, driverId);
-        render();
+          <label>车辆番号（密码） <span class="jp">自動車登録番号</span></label>
+          <input name="plate" type="password" autocomplete="current-password" placeholder="请输入自己的车牌号">
+          <p class="err" id="loginErr"></p>
+          <button class="btn" type="button" id="loginBtn" style="margin-top:.4rem">登录</button>
+          <p class="hint">选好名字，用车牌号当密码。关掉再打开，登录后还能接着填。</p>
+        </div>
+        ${testHtml}`;
+      const doLogin = async () => {
+        const id = $app.querySelector('[name=me]').value;
+        const plate = $app.querySelector('[name=plate]').value;
+        const err = document.getElementById('loginErr');
+        err.textContent = '';
+        if (!id) { err.textContent = '请选择乘务员'; return; }
+        if (!plate) { err.textContent = '请输入车辆番号'; return; }
+        try {
+          state = await Nikki.loginDriver(id, plate);
+          driverId = id;
+          report = Nikki.ensureToday(state, driverId);
+          render();
+        } catch (e) {
+          err.textContent = e.message || '登录失败';
+        }
       };
+      $app.querySelector('#loginBtn').onclick = doLogin;
+      $app.querySelector('[name=plate]').onkeydown = (e) => {
+        if (e.key === 'Enter') doLogin();
+      };
+      $app.querySelectorAll('.test-row').forEach((row) => {
+        row.onclick = async () => {
+          const id = row.dataset.id;
+          const plate = row.dataset.plate || '';
+          $app.querySelector('[name=me]').value = id;
+          $app.querySelector('[name=plate]').value = plate;
+          try { await navigator.clipboard.writeText(plate); } catch (_) {}
+          toast('已复制 ' + plate);
+        };
+      });
     }
 
     function tripHtml(t, i) {
@@ -184,6 +243,7 @@
       if (!driverId) return renderLogin();
       document.getElementById('switchDriver').style.display = '';
       $btn.style.display = 'block';
+      if ($foot) $foot.style.display = '';
       const name = Nikki.driverName(state, driverId);
       document.getElementById('whoLine').textContent = name + ' · ' + report.date + ' · 一人一天一份';
       const dOpts = state.drivers.map((d) => [d.id, d.name]);
@@ -236,7 +296,7 @@
         </div>
         <div class="card">
           <h2>行程 主な経過地</h2>
-          <p class="hint">可一趟趟加。最后一趟回库不用另写，回库时间在上面。</p>
+          <p class="hint">先填这一趟，不够再点下面增加。最后一趟回库不用另写。</p>
           <div id="trips">${(report.trips || []).map(tripHtml).join('')}</div>
           ${locked() ? '' : `<button class="add" type="button" id="addTrip">＋ 加一趟</button>`}
         </div>
@@ -331,16 +391,22 @@
       report.status = 'submitted';
       report.submittedAt = new Date().toISOString();
       Nikki.upsertReport(state, report, { who: Nikki.driverName(state, report.driverId), field: '提交', from: '草稿', to: '已提交' });
+      Nikki.flush();
       toast('已提交，公司负责人可以查看');
       render();
     };
 
-    if (driverId) {
-      report = Nikki.ensureToday(state, driverId);
-      state = Nikki.load();
-      report = Nikki.findToday(state, driverId);
-    }
-    render();
+    (async () => {
+      state = await Nikki.boot();
+      driverId = sessionStorage.getItem('nikki-driver') || '';
+      if (driverId && sessionStorage.getItem('nikki-role') === 'driver') {
+        report = Nikki.ensureToday(state, driverId);
+        render();
+      } else {
+        driverId = '';
+        renderLogin();
+      }
+    })();
   </script>
 </body>
 </html>

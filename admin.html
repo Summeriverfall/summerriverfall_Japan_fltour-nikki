@@ -55,6 +55,9 @@
     .list-item input { flex: 1; }
     .muted { color: var(--light); font-size: .78rem; }
     .print-only { display: none; }
+    .err { color: var(--danger); font-size: .82rem; margin-top: .4rem; }
+    .login-box { max-width: 380px; margin: 3rem auto; }
+    .test-hint { margin-top: .85rem; color: #c9c4bb; font-size: .75rem; font-weight: 400; line-height: 1.65; cursor: pointer; }
 
     @media print {
       .bar, .tabs, .no-print, .notice, .btn { display: none !important; }
@@ -84,6 +87,7 @@
       <button class="tab" data-tab="people">乘务员 / 车辆</button>
       <button class="tab" data-tab="logs">修改记录（仅后台）</button>
       <a class="tab" href="index.html" style="text-decoration:none">入口</a>
+      <button class="tab" type="button" id="logoutBtn">退出</button>
     </div>
   </div>
   <div class="wrap" id="app"></div>
@@ -92,19 +96,67 @@
     let state = Nikki.load();
     let tab = 'list';
     let openId = '';
+    let authed = sessionStorage.getItem('nikki-role') === 'admin';
 
     const $app = document.getElementById('app');
     document.querySelectorAll('.tab[data-tab]').forEach((b) => {
       b.onclick = () => {
+        if (!authed) return;
         tab = b.dataset.tab;
         document.querySelectorAll('.tab[data-tab]').forEach((x) => x.classList.toggle('on', x === b));
         render();
       };
     });
+    document.getElementById('logoutBtn').onclick = () => {
+      Nikki.flush();
+      Nikki.logout();
+      authed = false;
+      openId = '';
+      renderLogin();
+    };
 
     function reload() { state = Nikki.load(); }
 
+    function renderLogin() {
+      $app.innerHTML = `
+        <div class="card login-box">
+          <h3>管理员登录</h3>
+          <label>账号</label>
+          <input id="adminUser" value="Admin" autocomplete="username">
+          <label>密码</label>
+          <input id="adminPass" type="password" autocomplete="current-password">
+          <p class="err" id="loginErr"></p>
+          <button class="btn" id="loginBtn" style="margin-top:.8rem;width:100%">登录</button>
+          <p class="test-hint" id="testAdmin">测试　Admin　FltourAdmin2026</p>
+        </div>`;
+      const go = async () => {
+        const err = document.getElementById('loginErr');
+        err.textContent = '';
+        try {
+          state = await Nikki.loginAdmin(
+            document.getElementById('adminUser').value,
+            document.getElementById('adminPass').value
+          );
+          authed = true;
+          render();
+        } catch (e) {
+          err.textContent = e.message || '登录失败';
+        }
+      };
+      document.getElementById('loginBtn').onclick = go;
+      document.getElementById('adminPass').onkeydown = (e) => { if (e.key === 'Enter') go(); };
+      const tip = document.getElementById('testAdmin');
+      if (tip) {
+        tip.onclick = async () => {
+          document.getElementById('adminUser').value = 'Admin';
+          document.getElementById('adminPass').value = 'FltourAdmin2026';
+          try { await navigator.clipboard.writeText('FltourAdmin2026'); } catch (_) {}
+        };
+      }
+    }
+
     function render() {
+      if (!authed) return renderLogin();
       reload();
       if (tab === 'people') return renderPeople();
       if (tab === 'logs') return renderLogs();
@@ -140,12 +192,18 @@
         <div class="g2">
           <div class="card">
             <h3>乗務員名</h3>
-            <p class="muted" style="margin:.3rem 0 .7rem">下拉里用这些名字，可追加/删除。</p>
-            <div id="drivers">${state.drivers.map((d) => `
-              <div class="list-item" data-did="${d.id}">
-                <input value="${d.name}">
+            <p class="muted" style="margin:.3rem 0 .7rem">姓名是账号，绑定的车牌就是登录密码。</p>
+            <div id="drivers">${state.drivers.map((d) => {
+              const vid = (state.driverVehicle || {})[d.id] || '';
+              const opts = [`<option value="">选车牌（密码）</option>`]
+                .concat(state.vehicles.map((v) => `<option value="${v.id}" ${v.id === vid ? 'selected' : ''}>${v.plate}</option>`)).join('');
+              return `
+              <div class="list-item" data-did="${d.id}" style="flex-wrap:wrap">
+                <input value="${d.name}" style="min-width:8rem">
+                <select data-bind="${d.id}" style="flex:1;min-width:10rem">${opts}</select>
                 <button class="btn ghost" data-del-d="${d.id}">删</button>
-              </div>`).join('')}</div>
+              </div>`;
+            }).join('')}</div>
             <div class="row" style="margin-top:.7rem">
               <input id="newDriver" placeholder="新乘务员名">
               <button class="btn" id="addDriver">追加</button>
@@ -169,33 +227,40 @@
         const n = $app.querySelector('#newDriver').value.trim();
         if (!n) return;
         state.drivers.push({ id: Nikki.uid('d'), name: n });
-        Nikki.save(state); render();
+        Nikki.savePeople(state); render();
       };
       $app.querySelector('#addVehicle').onclick = () => {
         const n = $app.querySelector('#newVehicle').value.trim();
         if (!n) return;
         state.vehicles.push({ id: Nikki.uid('v'), plate: n });
-        Nikki.save(state); render();
+        Nikki.savePeople(state); render();
       };
       $app.querySelectorAll('[data-did] input').forEach((inp) => {
         inp.onchange = () => {
           const d = state.drivers.find((x) => x.id === inp.parentElement.dataset.did);
-          if (d) { d.name = inp.value.trim(); Nikki.save(state); }
+          if (d) { d.name = inp.value.trim(); Nikki.savePeople(state); }
+        };
+      });
+      $app.querySelectorAll('[data-bind]').forEach((sel) => {
+        sel.onchange = () => {
+          state.driverVehicle = state.driverVehicle || {};
+          state.driverVehicle[sel.dataset.bind] = sel.value;
+          Nikki.savePeople(state);
         };
       });
       $app.querySelectorAll('[data-vid] input').forEach((inp) => {
         inp.onchange = () => {
           const v = state.vehicles.find((x) => x.id === inp.parentElement.dataset.vid);
-          if (v) { v.plate = inp.value.trim(); Nikki.save(state); }
+          if (v) { v.plate = inp.value.trim(); Nikki.savePeople(state); }
         };
       });
       $app.querySelectorAll('[data-del-d]').forEach((b) => b.onclick = () => {
         state.drivers = state.drivers.filter((x) => x.id !== b.dataset.delD);
-        Nikki.save(state); render();
+        Nikki.savePeople(state); render();
       });
       $app.querySelectorAll('[data-del-v]').forEach((b) => b.onclick = () => {
         state.vehicles = state.vehicles.filter((x) => x.id !== b.dataset.delV);
-        Nikki.save(state); render();
+        Nikki.savePeople(state); render();
       });
     }
 
@@ -324,6 +389,7 @@
         state.logs.unshift({ id: Nikki.uid('l'), reportId: after.id, at: new Date().toISOString(), who: '管理者', ...d });
       });
       Nikki.upsertReport(state, after);
+      Nikki.flush();
       alert(diffs.length ? '已保存。打印件上看不出改过。改痕在「修改记录」。' : '没有改动。');
       openId = after.id;
       render();
@@ -389,7 +455,11 @@
       `;
     }
 
-    render();
+    (async () => {
+      state = await Nikki.boot();
+      authed = sessionStorage.getItem('nikki-role') === 'admin';
+      render();
+    })();
   </script>
 </body>
 </html>

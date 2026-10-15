@@ -1,6 +1,14 @@
-/* Fltour 運転日報 · 初版本地数据层（localStorage） */
+/* Fltour 運転日報 · 客户端（优先自有服务器，断线时本机缓存） */
 (function (w) {
   const KEY = 'fltour-nikki-v1';
+  const API_BASE = (function () {
+    try {
+      const q = new URLSearchParams(location.search).get('api');
+      if (q) return q.replace(/\/$/, '');
+    } catch (_) {}
+    if (w.NIKKI_API) return String(w.NIKKI_API).replace(/\/$/, '');
+    return '';
+  })();
 
   const DEFAULT_DRIVERS = [
     { id: 'd1', name: '艾倫' },
@@ -29,6 +37,11 @@
     d6: 'v6', d7: 'v7', d8: 'v8', d9: 'v9',
   };
 
+  let useServer = false;
+  let onSaveStatus = null;
+  let pending = null;
+  let saveTimer = 0;
+
   function uid(prefix) {
     return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   }
@@ -46,6 +59,15 @@
   }
   function emptyRest() {
     return { place: '', from: '', to: '' };
+  }
+  function tripFilled(t) {
+    if (!t) return false;
+    return !!(t.depart || t.pickup || t.pax || t.dropoff || t.arrive || t.wait);
+  }
+  function compactTrips(trips) {
+    const list = Array.isArray(trips) ? trips : [];
+    const filled = list.filter(tripFilled);
+    return filled.length ? filled : [emptyTrip()];
   }
   function blankReport(partial) {
     const date = (partial && partial.date) || todayISO();
@@ -67,7 +89,7 @@
       meterStart: '',
       emptyKm: '',
       rests: [emptyRest(), emptyRest(), emptyRest()],
-      trips: [emptyTrip(), emptyTrip(), emptyTrip()],
+      trips: [emptyTrip()],
       accident: '',
       instruction: '',
       status: 'draft',
@@ -77,66 +99,15 @@
       ...partial,
     };
   }
-
-  function seedReports() {
-    const date = todayISO();
-    const r = reiwaParts(date);
-    return [
-      {
-        ...blankReport({
-          id: 'r-demo-1',
-          date,
-          driverId: 'd1',
-          vehicleId: 'v1',
-          manager: '',
-          startHour: '08',
-          startMin: '00',
-          endHour: '18',
-          endMin: '30',
-          meterStart: '45210',
-          meterEnd: '45302',
-          emptyKm: '18',
-          rests: [
-            { place: 'サービスエリア', from: '12:00', to: '12:40' },
-            emptyRest(),
-            emptyRest(),
-          ],
-          trips: [
-            { depart: '08:20', pickup: 'なんば', pax: '2', dropoff: '関西空港', arrive: '09:15', wait: '10' },
-            { depart: '10:40', pickup: '関西空港', pax: '3', dropoff: '心斎橋', arrive: '11:35', wait: '15' },
-            { depart: '14:00', pickup: '梅田', pax: '1', dropoff: 'USJ', arrive: '14:40', wait: '20' },
-            { depart: '16:10', pickup: 'USJ', pax: '4', dropoff: '難波', arrive: '16:55', wait: '' },
-          ],
-          accident: '',
-          instruction: '',
-          status: 'submitted',
-          submittedAt: date + 'T18:42:00',
-          y: r.y, m: r.m, d: r.d,
-        }),
-      },
-    ];
-  }
-
   function defaultState() {
     return {
       drivers: DEFAULT_DRIVERS,
       vehicles: DEFAULT_VEHICLES,
       driverVehicle: { ...DRIVER_VEHICLE },
-      reports: seedReports(),
-      logs: [
-        {
-          id: 'l-demo',
-          reportId: 'r-demo-1',
-          at: todayISO() + 'T19:05:00',
-          who: '管理者',
-          field: '空車距離',
-          from: '15',
-          to: '18',
-        },
-      ],
+      reports: [],
+      logs: [],
     };
   }
-
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
@@ -152,18 +123,178 @@
       return defaultState();
     }
   }
-  function save(s) {
+  function saveLocal(s) {
     localStorage.setItem(KEY, JSON.stringify(s));
+  }
+  function token() {
+    return sessionStorage.getItem('nikki-token') || '';
+  }
+  function authHeaders() {
+    const h = { 'Content-Type': 'application/json' };
+    const t = token();
+    if (t) h.Authorization = 'Bearer ' + t;
+    return h;
+  }
+  function api(p) {
+    return API_BASE + p;
+  }
+  function setStatus(t) {
+    if (typeof onSaveStatus === 'function') onSaveStatus(t);
+  }
+  function normPlate(s) {
+    return String(s || '')
+      .normalize('NFKC')
+      .replace(/[\s　\-ー－·・‧∙.]/g, '');
+  }
+
+  async function ping() {
+    try {
+      const r = await fetch(api('/api/health'), { cache: 'no-store' });
+      useServer = r.ok;
+    } catch (_) {
+      useServer = false;
+    }
+    return useServer;
+  }
+
+  async function fetchJson(p, opt) {
+    const r = await fetch(api(p), opt);
+    let j = {};
+    try { j = await r.json(); } catch (_) {}
+    if (!r.ok) {
+      const err = new Error(j.error || ('请求失败 ' + r.status));
+      err.status = r.status;
+      throw err;
+    }
+    return j;
+  }
+
+  async function pullState() {
+    const s = await fetchJson('/api/state', { headers: authHeaders(), cache: 'no-store' });
+    saveLocal(s);
+    return s;
+  }
+
+  function queue(kind, payload) {
+    pending = { kind, payload };
+    setStatus('保存中…');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flush, 450);
+  }
+
+  async function flush() {
+    clearTimeout(saveTimer);
+    const job = pending;
+    pending = null;
+    if (!job || !useServer || !token()) {
+      setStatus(useServer ? '' : '未连上服务器，仅保存在本机');
+      return;
+    }
+    try {
+      if (job.kind === 'report') {
+        await fetchJson('/api/report', {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify(job.payload),
+        });
+      } else if (job.kind === 'people') {
+        await fetchJson('/api/people', {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify(job.payload),
+        });
+      } else if (job.kind === 'logs') {
+        await fetchJson('/api/logs', {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify(job.payload),
+        });
+      }
+      setStatus('已保存到服务器');
+    } catch (e) {
+      pending = job;
+      setStatus(e.message || '保存失败');
+    }
+  }
+
+  async function boot() {
+    await ping();
+    if (useServer && token()) {
+      try {
+        return await pullState();
+      } catch (e) {
+        if (e.status === 401) logout();
+      }
+    }
+    return load();
+  }
+
+  async function publicDrivers() {
+    await ping();
+    if (useServer) {
+      try { return await fetchJson('/api/drivers', { cache: 'no-store' }); }
+      catch (_) {}
+    }
+    return load().drivers.map((d) => ({ id: d.id, name: d.name }));
+  }
+
+  async function loginDriver(driverId, password) {
+    await ping();
+    if (useServer) {
+      const j = await fetchJson('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'driver', driverId, password }),
+      });
+      sessionStorage.setItem('nikki-token', j.token);
+      sessionStorage.setItem('nikki-driver', driverId);
+      sessionStorage.setItem('nikki-role', 'driver');
+      return pullState();
+    }
+    const s = load();
+    const vid = s.driverVehicle && s.driverVehicle[driverId];
+    const plate = vehiclePlate(s, vid);
+    if (!plate) throw new Error('该乘务员未绑定车辆');
+    if (normPlate(password) !== normPlate(plate)) throw new Error('车辆番号不对');
+    sessionStorage.setItem('nikki-driver', driverId);
+    sessionStorage.setItem('nikki-role', 'driver');
+    return s;
+  }
+
+  async function loginAdmin(user, password) {
+    await ping();
+    if (useServer) {
+      const j = await fetchJson('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'admin', user, password }),
+      });
+      sessionStorage.setItem('nikki-token', j.token);
+      sessionStorage.setItem('nikki-role', 'admin');
+      sessionStorage.removeItem('nikki-driver');
+      return pullState();
+    }
+    if (String(user || '').trim() !== 'Admin' || String(password || '') !== 'FltourAdmin2026') {
+      throw new Error('账号或密码不对');
+    }
+    sessionStorage.setItem('nikki-role', 'admin');
+    return load();
+  }
+
+  function logout() {
+    sessionStorage.removeItem('nikki-token');
+    sessionStorage.removeItem('nikki-driver');
+    sessionStorage.removeItem('nikki-role');
   }
 
   function distanceKm(rep) {
+    if (rep.meterEnd === '' || rep.meterStart === '' || rep.meterEnd == null || rep.meterStart == null) return '';
     const a = Number(rep.meterEnd);
     const b = Number(rep.meterStart);
     if (!Number.isFinite(a) || !Number.isFinite(b)) return '';
     const d = a - b;
     return d >= 0 ? String(d) : '';
   }
-
   function driverName(s, id) {
     const d = (s.drivers || []).find((x) => x.id === id);
     return d ? d.name : '';
@@ -172,35 +303,55 @@
     const v = (s.vehicles || []).find((x) => x.id === id);
     return v ? v.plate : '';
   }
-
   function findToday(s, driverId, date) {
     const day = date || todayISO();
     return (s.reports || []).find((r) => r.driverId === driverId && r.date === day) || null;
   }
-
   function ensureToday(s, driverId, date) {
     const day = date || todayISO();
     let r = findToday(s, driverId, day);
-    if (r) return r;
+    if (r) {
+      if (r.status !== 'submitted') {
+        const before = JSON.stringify(r.trips || []);
+        r.trips = compactTrips(r.trips);
+        if (JSON.stringify(r.trips) !== before) {
+          saveLocal(s);
+          queue('report', { report: r, log: null });
+        }
+      }
+      return r;
+    }
     r = blankReport({
       date: day,
       driverId,
       vehicleId: (s.driverVehicle && s.driverVehicle[driverId]) || '',
     });
     s.reports.unshift(r);
-    save(s);
+    saveLocal(s);
+    queue('report', { report: r, log: null });
     return r;
   }
-
   function upsertReport(s, report, logEntry) {
     const i = s.reports.findIndex((x) => x.id === report.id);
     report.updatedAt = new Date().toISOString();
     if (i >= 0) s.reports[i] = report;
     else s.reports.unshift(report);
     if (logEntry) s.logs.unshift({ id: uid('l'), at: report.updatedAt, reportId: report.id, ...logEntry });
-    save(s);
+    saveLocal(s);
+    queue('report', { report, log: logEntry || null });
   }
-
+  function savePeople(s) {
+    saveLocal(s);
+    queue('people', {
+      drivers: s.drivers,
+      vehicles: s.vehicles,
+      driverVehicle: s.driverVehicle,
+    });
+  }
+  function saveLogs(s) {
+    saveLocal(s);
+    queue('logs', { logs: s.logs });
+  }
   function diffFields(before, after) {
     const labels = {
       driverId: '乗務員',
@@ -232,7 +383,6 @@
     }
     return out;
   }
-
   function hours() {
     return Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   }
@@ -242,17 +392,35 @@
   function paxOptions() {
     return ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10+'];
   }
+  function testRoster() {
+    return DEFAULT_DRIVERS.map((d) => {
+      const vid = DRIVER_VEHICLE[d.id];
+      const v = DEFAULT_VEHICLES.find((x) => x.id === vid);
+      return { id: d.id, name: d.name, plate: v ? v.plate : '' };
+    });
+  }
+
+  w.addEventListener('pagehide', () => { flush(); });
+  w.addEventListener('visibilitychange', () => {
+    if (document.hidden) flush();
+  });
 
   w.Nikki = {
     KEY,
+    API_BASE,
+    get useServer() { return useServer; },
+    set onSaveStatus(fn) { onSaveStatus = fn; },
     load,
-    save,
+    save: saveLocal,
+    savePeople,
+    saveLogs,
     uid,
     todayISO,
     reiwaParts,
     blankReport,
     emptyTrip,
     emptyRest,
+    compactTrips,
     distanceKm,
     driverName,
     vehiclePlate,
@@ -263,6 +431,15 @@
     hours,
     mins,
     paxOptions,
+    testRoster,
+    boot,
+    ping,
+    flush,
+    publicDrivers,
+    loginDriver,
+    loginAdmin,
+    logout,
+    token,
     reset() {
       localStorage.removeItem(KEY);
       return load();
