@@ -66,6 +66,8 @@
     .muted { color: var(--light); font-size: .78rem; }
     .print-only { display: none; }
     .err { color: var(--danger); font-size: .82rem; margin-top: .4rem; }
+    input.time-in.bad { border-color: var(--danger); background: #fff5f5; }
+    .time-err { min-height: 1em; margin: .2rem 0 0; font-size: .75rem; color: var(--danger); }
     .login-box { max-width: 380px; margin: 1.5rem auto; }
     .test-hint { margin-top: .85rem; color: #c9c4bb; font-size: .75rem; font-weight: 400; line-height: 1.65; cursor: pointer; }
 
@@ -138,7 +140,7 @@
     </div>
   </div>
   <div class="wrap" id="app"></div>
-  <script src="app.js?v=20261016d"></script>
+  <script src="app.js?v=20261016e"></script>
   <script>
     let state = Nikki.load();
     let tab = 'list';
@@ -324,7 +326,7 @@
     }
 
     function timeBox(id, h, m) {
-      return `<input id="${id}" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(h, m)}" autocomplete="off">`;
+      return `<div class="time-wrap"><input class="time-in" id="${id}" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(h, m)}" autocomplete="off"><p class="time-err"></p></div>`;
     }
 
     function renderEdit(id) {
@@ -369,11 +371,11 @@
             <thead><tr><th>出発</th><th>乗車場所</th><th>人数</th><th>到着場所</th><th>到着</th><th>空車/待機分</th></tr></thead>
             <tbody>
               ${(r.trips || []).map((t, i) => `<tr>
-                <td><input data-trip="${i}" data-f="depart" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(t.depart)}"></td>
+                <td><div class="time-wrap"><input class="time-in" data-trip="${i}" data-f="depart" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(t.depart)}"><p class="time-err"></p></div></td>
                 <td><input data-trip="${i}" data-f="pickup" value="${t.pickup || ''}"></td>
                 <td><select data-trip="${i}" data-f="pax">${['',...Nikki.paxOptions()].map((p) => `<option ${p === t.pax ? 'selected' : ''}>${p}</option>`).join('')}</select></td>
                 <td><input data-trip="${i}" data-f="dropoff" value="${t.dropoff || ''}"></td>
-                <td><input data-trip="${i}" data-f="arrive" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(t.arrive)}"></td>
+                <td><div class="time-wrap"><input class="time-in" data-trip="${i}" data-f="arrive" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(t.arrive)}"><p class="time-err"></p></div></td>
                 <td><input data-trip="${i}" data-f="wait" value="${t.wait || ''}"></td>
               </tr>`).join('')}
             </tbody>
@@ -386,9 +388,14 @@
       $app.querySelector('#back').onclick = () => { openId = ''; render(); };
       $app.querySelector('#print').onclick = () => window.print();
       $app.querySelector('#save').onclick = () => saveEdit(r);
+      $app.oninput = (e) => {
+        if (e.target && e.target.classList.contains('time-in')) Nikki.sanitizeTimeInput(e.target);
+      };
     }
 
     function saveEdit(before) {
+      const bad = [...$app.querySelectorAll('.time-in')].find((el) => Nikki.sanitizeTimeInput(el).invalid);
+      if (bad) return alert(bad.parentElement.querySelector('.time-err').textContent || '时间格式不对');
       const after = { ...before, rests: [...(before.rests || [])], trips: [...(before.trips || [])].map((t) => ({ ...t })) };
       after.date = $app.querySelector('#date').value;
       after.driverId = $app.querySelector('#driverId').value;
