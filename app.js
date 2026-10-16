@@ -449,33 +449,45 @@
   }
   function parseTimeDigits(s) {
     const raw = String(s || '').trim();
-    if (!raw) return { h: '', m: '', text: '', digits: '', partial: false };
-    if (raw.includes(':')) {
-      const p = raw.split(':');
-      const hh = pad2(p[0]);
-      const mm = pad2(p[1]);
-      return { h: hh, m: mm, text: hh + ':' + mm, digits: hh + mm, partial: false };
+    if (!raw) return { h: '', m: '', text: '', digits: '', partial: false, invalid: false, error: '' };
+    let d = raw.includes(':')
+      ? raw.split(':').map((x) => String(x).replace(/\D/g, '')).join('')
+      : raw.replace(/\D/g, '');
+    d = d.slice(0, 4);
+    if (d.length >= 2) {
+      const hhN = Number(d.slice(0, 2));
+      if (!Number.isFinite(hhN) || hhN > 23) {
+        return { h: '', m: '', text: '', digits: d, partial: true, invalid: true, error: '小时须 00–23' };
+      }
     }
-    const d = raw.replace(/\D/g, '');
-    if (d.length < 4) return { h: '', m: '', text: '', digits: d, partial: true };
+    if (d.length < 4) return { h: '', m: '', text: '', digits: d, partial: true, invalid: false, error: '' };
     const hhN = Number(d.slice(0, 2));
     const mmN = Number(d.slice(2, 4));
-    if (!Number.isFinite(hhN) || !Number.isFinite(mmN) || hhN > 23 || mmN > 59) {
-      return { h: '', m: '', text: '', digits: d.slice(0, 4), partial: true };
+    if (!Number.isFinite(mmN) || mmN > 59) {
+      return { h: '', m: '', text: '', digits: d, partial: true, invalid: true, error: '分钟须 00–59' };
     }
     const hh = pad2(hhN);
     const mm = pad2(mmN);
-    return { h: hh, m: mm, text: hh + ':' + mm, digits: hh + mm, partial: false };
+    return { h: hh, m: mm, text: hh + ':' + mm, digits: hh + mm, partial: false, invalid: false, error: '' };
   }
   function applyTime(oldH, oldM, inputVal) {
     const p = parseTimeDigits(inputVal);
-    if (p.partial) return { h: oldH || '', m: oldM || '' };
+    if (p.partial || p.invalid) return { h: oldH || '', m: oldM || '' };
     return { h: p.h, m: p.m };
   }
   function applyTimeText(oldText, inputVal) {
     const p = parseTimeDigits(inputVal);
-    if (p.partial) return oldText || '';
+    if (p.partial || p.invalid) return oldText || '';
     return p.text;
+  }
+  function sanitizeTimeInput(el) {
+    if (!el) return { ok: true };
+    const p = parseTimeDigits(el.value);
+    if (el.value !== p.digits) el.value = p.digits;
+    el.classList.toggle('bad', !!p.invalid);
+    const err = el.parentElement && el.parentElement.querySelector('.time-err');
+    if (err) err.textContent = p.error || '';
+    return { ok: !p.invalid, partial: p.partial, invalid: p.invalid, error: p.error };
   }
   function paxOptions() {
     return ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10+'];
@@ -523,6 +535,7 @@
     parseTimeDigits,
     applyTime,
     applyTimeText,
+    sanitizeTimeInput,
     paxOptions,
     testRoster,
     boot,
