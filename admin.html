@@ -138,7 +138,7 @@
     </div>
   </div>
   <div class="wrap" id="app"></div>
-  <script src="app.js?v=20261016"></script>
+  <script src="app.js?v=20261016d"></script>
   <script>
     let state = Nikki.load();
     let tab = 'list';
@@ -323,10 +323,8 @@
         </div>`;
     }
 
-    function hm(h, m) {
-      const hs = Nikki.hours().map((x) => `<option ${x === h ? 'selected' : ''}>${x}</option>`).join('');
-      const ms = Nikki.mins().map((x) => `<option ${x === m ? 'selected' : ''}>${x}</option>`).join('');
-      return `<div class="g2"><select data-k="H">${hs}</select><select data-k="M">${ms}</select></div>`;
+    function timeBox(id, h, m) {
+      return `<input id="${id}" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(h, m)}" autocomplete="off">`;
     }
 
     function renderEdit(id) {
@@ -352,8 +350,8 @@
             <div><label>差引走行距離</label><input value="${dist || ''} km" disabled></div>
           </div>
           <div class="g2" style="margin-top:.6rem">
-            <div><label>出库地点 / 时:分</label><input id="startPlace" value="${r.startPlace || '車庫'}">${hm(r.startHour, r.startMin).replace('data-k="H"', 'id="startHour"').replace('data-k="M"', 'id="startMin"')}</div>
-            <div><label>回库地点 / 时:分</label><input id="endPlace" value="${r.endPlace || '車庫'}">${hm(r.endHour, r.endMin).replace('data-k="H"', 'id="endHour"').replace('data-k="M"', 'id="endMin"')}</div>
+            <div><label>出库地点 / 时间（0630＝6:30）</label><input id="startPlace" value="${r.startPlace || '車庫'}">${timeBox('startAt', r.startHour, r.startMin)}</div>
+            <div><label>回库地点 / 时间</label><input id="endPlace" value="${r.endPlace || '車庫'}">${timeBox('endAt', r.endHour, r.endMin)}</div>
           </div>
           <div class="g3" style="margin-top:.6rem">
             <div><label>開始メーター km</label><input id="meterStart" value="${r.meterStart || ''}"></div>
@@ -363,19 +361,19 @@
           <label style="margin-top:.8rem">休息</label>
           ${(r.rests || []).map((x, i) => `<div class="g3" style="margin-bottom:.4rem">
             <input data-rest="${i}" data-f="place" value="${x.place || ''}" placeholder="地点">
-            <input data-rest="${i}" data-f="from" value="${x.from || ''}" placeholder="开始 08:00">
-            <input data-rest="${i}" data-f="to" value="${x.to || ''}" placeholder="结束 08:40">
+            <input data-rest="${i}" data-f="from" value="${Nikki.timeToDigits(x.from)}" placeholder="开始 0630">
+            <input data-rest="${i}" data-f="to" value="${Nikki.timeToDigits(x.to)}" placeholder="结束 0840">
           </div>`).join('')}
           <label>主な経過地</label>
           <table>
             <thead><tr><th>出発</th><th>乗車場所</th><th>人数</th><th>到着場所</th><th>到着</th><th>空車/待機分</th></tr></thead>
             <tbody>
               ${(r.trips || []).map((t, i) => `<tr>
-                <td><input data-trip="${i}" data-f="depart" value="${t.depart || ''}"></td>
+                <td><input data-trip="${i}" data-f="depart" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(t.depart)}"></td>
                 <td><input data-trip="${i}" data-f="pickup" value="${t.pickup || ''}"></td>
                 <td><select data-trip="${i}" data-f="pax">${['',...Nikki.paxOptions()].map((p) => `<option ${p === t.pax ? 'selected' : ''}>${p}</option>`).join('')}</select></td>
                 <td><input data-trip="${i}" data-f="dropoff" value="${t.dropoff || ''}"></td>
-                <td><input data-trip="${i}" data-f="arrive" value="${t.arrive || ''}"></td>
+                <td><input data-trip="${i}" data-f="arrive" inputmode="numeric" maxlength="4" placeholder="0630" value="${Nikki.timeToDigits(t.arrive)}"></td>
                 <td><input data-trip="${i}" data-f="wait" value="${t.wait || ''}"></td>
               </tr>`).join('')}
             </tbody>
@@ -398,11 +396,13 @@
       after.manager = $app.querySelector('#manager').value;
       after.assistant = $app.querySelector('#assistant').value;
       after.startPlace = $app.querySelector('#startPlace').value;
-      after.startHour = $app.querySelector('#startHour').value;
-      after.startMin = $app.querySelector('#startMin').value;
+      const startAt = Nikki.applyTime(before.startHour, before.startMin, $app.querySelector('#startAt').value);
+      after.startHour = startAt.h;
+      after.startMin = startAt.m;
       after.endPlace = $app.querySelector('#endPlace').value;
-      after.endHour = $app.querySelector('#endHour').value;
-      after.endMin = $app.querySelector('#endMin').value;
+      const endAt = Nikki.applyTime(before.endHour, before.endMin, $app.querySelector('#endAt').value);
+      after.endHour = endAt.h;
+      after.endMin = endAt.m;
       after.meterStart = $app.querySelector('#meterStart').value;
       after.meterEnd = $app.querySelector('#meterEnd').value;
       after.emptyKm = $app.querySelector('#emptyKm').value;
@@ -411,12 +411,16 @@
       $app.querySelectorAll('[data-rest]').forEach((el) => {
         const i = Number(el.dataset.rest);
         after.rests[i] = after.rests[i] || Nikki.emptyRest();
-        after.rests[i][el.dataset.f] = el.value;
+        after.rests[i][el.dataset.f] = (el.dataset.f === 'from' || el.dataset.f === 'to')
+          ? Nikki.applyTimeText(before.rests[i] && before.rests[i][el.dataset.f], el.value)
+          : el.value;
       });
       $app.querySelectorAll('[data-trip]').forEach((el) => {
         const i = Number(el.dataset.trip);
         after.trips[i] = after.trips[i] || Nikki.emptyTrip();
-        after.trips[i][el.dataset.f] = el.value;
+        after.trips[i][el.dataset.f] = (el.dataset.f === 'depart' || el.dataset.f === 'arrive')
+          ? Nikki.applyTimeText(before.trips[i] && before.trips[i][el.dataset.f], el.value)
+          : el.value;
       });
       const diffs = Nikki.diffFields(before, after);
       diffs.forEach((d) => {
