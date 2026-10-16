@@ -100,14 +100,14 @@
     <p class="sub" id="whoLine">一人一天一份 · 当晚提交</p>
     <p class="save-line" id="saveLine"></p>
     <div class="who">
-      <a href="index.html">返回入口</a>
+      <a href="index.html" id="backHome">返回入口</a>
       <a href="#" id="switchDriver">退出登录</a>
     </div>
   </header>
   <main class="wrap" id="app"></main>
   <div class="foot"><button class="btn" id="submitBtn" type="button">确认提交给公司</button></div>
   <div class="toast" id="toast"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20261016"></script>
   <script>
     const SHOW_TEST_PLATES = true; // 正式版改 false，或整块删掉
     const $app = document.getElementById('app');
@@ -128,7 +128,7 @@
       $toast.textContent = t; $toast.style.display = 'block';
       setTimeout(() => { $toast.style.display = 'none'; }, 1800);
     }
-    function locked() { return report && report.status === 'submitted'; }
+    function alreadySent() { return report && report.status === 'submitted'; }
 
     function sel(name, val, opts, extra = '') {
       const o = [`<option value="">请选择</option>`]
@@ -159,6 +159,10 @@
       renderLogin();
     }
     document.getElementById('switchDriver').onclick = switchDriver;
+    document.getElementById('backHome').onclick = () => {
+      persist();
+      Nikki.flush();
+    };
 
     async function renderLogin() {
       $btn.style.display = 'none';
@@ -183,7 +187,7 @@
           <input name="plate" type="password" autocomplete="current-password" placeholder="请输入自己的车牌号">
           <p class="err" id="loginErr"></p>
           <button class="btn" type="button" id="loginBtn" style="margin-top:.4rem">登录</button>
-          <p class="hint">选好名字，用车牌号当密码。关掉再打开，登录后还能接着填。</p>
+          <p class="hint">选好名字，用车牌号当密码。填过的会马上保存，关掉再打开还能接着填。提交后也可以继续改。</p>
         </div>
         ${testHtml}`;
       const doLogin = async () => {
@@ -222,7 +226,7 @@
       const pax = Nikki.paxOptions().map((x) => [x, x + '人']);
       return `<div class="trip" data-i="${i}">
         <div class="trip-h"><b>第 ${i + 1} 趟</b>
-          ${locked() ? '' : `<button class="ghost" type="button" data-del="${i}">删除</button>`}
+          <button class="ghost" type="button" data-del="${i}">删除</button>
         </div>
         <label>出发时间 <span class="jp">出発時間</span></label>
         ${timeSel('depart-' + i, t.depart)}
@@ -249,45 +253,44 @@
       const dOpts = state.drivers.map((d) => [d.id, d.name]);
       const vOpts = state.vehicles.map((v) => [v.id, v.plate]);
       const dist = Nikki.distanceKm(report);
-      const dis = locked() ? 'disabled' : '';
       $app.innerHTML = `
-        ${locked() ? `<div class="lock">今天这份已提交。如需改，请公司负责人修改。</div>` : ''}
+        ${alreadySent() ? `<div class="lock">今天已交过一版，还可以继续改、继续加行程，再点下面更新。</div>` : ''}
         <div class="card">
           <h2>基本</h2>
           <label>日期 <span class="jp">日付</span></label>
-          <input type="date" name="date" value="${report.date}" ${dis}>
+          <input type="date" name="date" value="${report.date}">
           <label>乘务员 <span class="jp">乗務員名</span></label>
-          ${sel('driverId', report.driverId, dOpts, dis)}
+          ${sel('driverId', report.driverId, dOpts)}
           <label>车辆番号 <span class="jp">自動車登録番号</span></label>
-          ${sel('vehicleId', report.vehicleId, vOpts, dis)}
+          ${sel('vehicleId', report.vehicleId, vOpts)}
         </div>
         <div class="card">
           <h2>出库 / 回库</h2>
           <label>出库地点 <span class="jp">乗務開始地点</span></label>
-          <input name="startPlace" value="${report.startPlace || '車庫'}" ${dis}>
+          <input name="startPlace" value="${report.startPlace || '車庫'}">
           <label>出库时间 <span class="jp">24時間</span></label>
           ${hm('startHour', 'startMin', report.startHour, report.startMin)}
           <label>回库地点 <span class="jp">乗務終了地点</span></label>
-          <input name="endPlace" value="${report.endPlace || '車庫'}" ${dis}>
+          <input name="endPlace" value="${report.endPlace || '車庫'}">
           <label>回库时间</label>
           ${hm('endHour', 'endMin', report.endHour, report.endMin)}
         </div>
         <div class="card">
           <h2>公里数 ※空车距离必填</h2>
           <label>开始码表 <span class="jp">乗務開始メーター km</span></label>
-          <input name="meterStart" inputmode="decimal" value="${report.meterStart || ''}" ${dis}>
+          <input name="meterStart" inputmode="decimal" value="${report.meterStart || ''}">
           <label>结束码表 <span class="jp">乗務終了メーター km</span></label>
-          <input name="meterEnd" inputmode="decimal" value="${report.meterEnd || ''}" ${dis}>
+          <input name="meterEnd" inputmode="decimal" value="${report.meterEnd || ''}">
           <p class="km">差引走行距離 <span id="dist">${dist || '—'}</span> km</p>
           <label>空车距离 <span class="jp">空車距離 km ※必須</span></label>
-          <input name="emptyKm" inputmode="decimal" value="${report.emptyKm || ''}" ${dis}>
+          <input name="emptyKm" inputmode="decimal" value="${report.emptyKm || ''}">
         </div>
         <div class="card">
           <h2>休息 / 睡眠</h2>
           ${[0,1,2].map((i) => {
             const x = report.rests[i] || Nikki.emptyRest();
             return `<label>地点 ${i+1}</label>
-              <input name="restPlace-${i}" value="${x.place || ''}" placeholder="场所名" ${dis}>
+              <input name="restPlace-${i}" value="${x.place || ''}" placeholder="场所名">
               <div class="row2">
                 <div><label>从</label>${timeSel('restFrom-'+i, x.from)}</div>
                 <div><label>到</label>${timeSel('restTo-'+i, x.to)}</div>
@@ -298,25 +301,18 @@
           <h2>行程 主な経過地</h2>
           <p class="hint">先填这一趟，不够再点下面增加。最后一趟回库不用另写。</p>
           <div id="trips">${(report.trips || []).map(tripHtml).join('')}</div>
-          ${locked() ? '' : `<button class="add" type="button" id="addTrip">＋ 加一趟</button>`}
+          <button class="add" type="button" id="addTrip">＋ 加一趟</button>
         </div>
         <div class="card">
           <h2>备注</h2>
           <label>事故 / 严重延误等 <span class="jp">異常な状況</span></label>
-          <textarea name="accident" ${dis}>${report.accident || ''}</textarea>
+          <textarea name="accident">${report.accident || ''}</textarea>
           <label>运行指示变更 <span class="jp">運行指示書の変更</span></label>
-          <textarea name="instruction" ${dis}>${report.instruction || ''}</textarea>
+          <textarea name="instruction">${report.instruction || ''}</textarea>
         </div>`;
-      if (locked()) {
-        $app.querySelectorAll('select,input,textarea').forEach((el) => el.disabled = true);
-        $btn.disabled = true;
-        $btn.textContent = '今天已提交';
-        $btn.classList.add('ok');
-      } else {
-        $btn.disabled = false;
-        $btn.textContent = '确认提交给公司';
-        $btn.classList.remove('ok');
-      }
+      $btn.disabled = false;
+      $btn.textContent = alreadySent() ? '更新提交' : '确认提交给公司';
+      $btn.classList.toggle('ok', alreadySent());
       bind();
     }
 
@@ -356,10 +352,12 @@
     }
 
     function persist() {
-      if (locked()) return;
+      if (!report) return;
       readForm();
       Nikki.upsertReport(state, report);
       state = Nikki.load();
+      const fresh = (state.reports || []).find((x) => x.id === report.id);
+      if (fresh) report = fresh;
     }
 
     function bind() {
@@ -388,18 +386,20 @@
       if (!report.vehicleId) return toast('请选车辆番号');
       if (!report.emptyKm) return toast('空车距离必填');
       if (!report.startHour || !report.endHour) return toast('请填出库/回库时间');
+      const wasSent = alreadySent();
       report.status = 'submitted';
       report.submittedAt = new Date().toISOString();
-      Nikki.upsertReport(state, report, { who: Nikki.driverName(state, report.driverId), field: '提交', from: '草稿', to: '已提交' });
+      Nikki.upsertReport(state, report, { who: Nikki.driverName(state, report.driverId), field: wasSent ? '更新' : '提交', from: '草稿', to: '已提交' });
       Nikki.flush();
-      toast('已提交，公司负责人可以查看');
+      toast(wasSent ? '已更新，公司可以看到最新一版' : '已提交，还可以继续改、继续加行程');
       render();
     };
 
     (async () => {
+      const sess = Nikki.restoreSession();
       state = await Nikki.boot();
-      driverId = sessionStorage.getItem('nikki-driver') || '';
-      if (driverId && sessionStorage.getItem('nikki-role') === 'driver') {
+      driverId = sess.driverId || sessionStorage.getItem('nikki-driver') || '';
+      if (driverId && (sess.role === 'driver' || sessionStorage.getItem('nikki-role') === 'driver')) {
         report = Nikki.ensureToday(state, driverId);
         render();
       } else {
