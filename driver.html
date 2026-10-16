@@ -83,6 +83,9 @@
     .err { color: var(--danger); font-size: .82rem; margin-top: .55rem; min-height: 1.1em; }
     .save-line { font-size: .72rem; color: var(--ok); margin-top: .12rem; min-height: 1em; }
     .save-line.warn { color: #b8860b; }
+    .time-wrap { position: relative; }
+    input.time-in.bad { border-color: var(--danger); background: #fff5f5; }
+    .time-err { min-height: 1.1em; margin: .28rem 0 0; font-size: .75rem; color: var(--danger); }
     .test-hint { margin-top: .35rem; color: #c9c4bb; font-size: .75rem; font-weight: 400; line-height: 1.65; }
     .test-hint p { margin: 0 0 .35rem; }
     .test-row {
@@ -107,7 +110,7 @@
   <main class="wrap" id="app"></main>
   <div class="foot"><button class="btn" id="submitBtn" type="button">确认提交给公司</button></div>
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20261016d"></script>
+  <script src="app.js?v=20261016e"></script>
   <script>
     const SHOW_TEST_PLATES = true; // 正式版改 false，或整块删掉
     const $app = document.getElementById('app');
@@ -137,7 +140,7 @@
     }
     function timeBox(name, val) {
       const digits = Nikki.timeToDigits(val);
-      return `<input name="${name}" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0630" value="${digits}" autocomplete="off">`;
+      return `<div class="time-wrap"><input class="time-in" name="${name}" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0630" value="${digits}" autocomplete="off"><p class="time-err"></p></div>`;
     }
     function timeBoxHM(name, h, m) {
       return timeBox(name, (h || m) ? Nikki.timeToDigits(h, m) : '');
@@ -367,8 +370,14 @@
     }
 
     function bind() {
-      $app.oninput = persist;
-      $app.onchange = persist;
+      $app.oninput = (e) => {
+        if (e.target && e.target.classList.contains('time-in')) Nikki.sanitizeTimeInput(e.target);
+        persist();
+      };
+      $app.onchange = (e) => {
+        if (e.target && e.target.classList.contains('time-in')) Nikki.sanitizeTimeInput(e.target);
+        persist();
+      };
       const add = document.getElementById('addTrip');
       if (add) add.onclick = () => {
         persist();
@@ -389,6 +398,8 @@
 
     $btn.onclick = () => {
       persist();
+      const bad = [...$app.querySelectorAll('.time-in')].find((el) => Nikki.sanitizeTimeInput(el).invalid);
+      if (bad) return toast(bad.parentElement.querySelector('.time-err').textContent || '时间格式不对');
       if (!report.vehicleId) return toast('请选车辆番号');
       if (!report.emptyKm) return toast('空车距离必填');
       if (!report.startHour || !report.endHour) return toast('请填出库/回库时间');
