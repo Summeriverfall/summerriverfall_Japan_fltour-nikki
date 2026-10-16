@@ -433,6 +433,50 @@
   function mins() {
     return Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, '0'));
   }
+  function pad2(n) {
+    return String(n == null ? '' : n).replace(/\D/g, '').padStart(2, '0').slice(-2);
+  }
+  function timeToDigits(h, m) {
+    if (h == null && m == null) return '';
+    if (typeof h === 'string' && h.includes(':')) {
+      const p = h.split(':');
+      return timeToDigits(p[0], p[1]);
+    }
+    const d = String(h || '').replace(/\D/g, '');
+    if (!m && d.length >= 4) return d.slice(0, 4);
+    if (!String(h || '') && !String(m || '')) return '';
+    return pad2(h || '00') + pad2(m || '00');
+  }
+  function parseTimeDigits(s) {
+    const raw = String(s || '').trim();
+    if (!raw) return { h: '', m: '', text: '', digits: '', partial: false };
+    if (raw.includes(':')) {
+      const p = raw.split(':');
+      const hh = pad2(p[0]);
+      const mm = pad2(p[1]);
+      return { h: hh, m: mm, text: hh + ':' + mm, digits: hh + mm, partial: false };
+    }
+    const d = raw.replace(/\D/g, '');
+    if (d.length < 4) return { h: '', m: '', text: '', digits: d, partial: true };
+    const hhN = Number(d.slice(0, 2));
+    const mmN = Number(d.slice(2, 4));
+    if (!Number.isFinite(hhN) || !Number.isFinite(mmN) || hhN > 23 || mmN > 59) {
+      return { h: '', m: '', text: '', digits: d.slice(0, 4), partial: true };
+    }
+    const hh = pad2(hhN);
+    const mm = pad2(mmN);
+    return { h: hh, m: mm, text: hh + ':' + mm, digits: hh + mm, partial: false };
+  }
+  function applyTime(oldH, oldM, inputVal) {
+    const p = parseTimeDigits(inputVal);
+    if (p.partial) return { h: oldH || '', m: oldM || '' };
+    return { h: p.h, m: p.m };
+  }
+  function applyTimeText(oldText, inputVal) {
+    const p = parseTimeDigits(inputVal);
+    if (p.partial) return oldText || '';
+    return p.text;
+  }
   function paxOptions() {
     return ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10+'];
   }
@@ -475,6 +519,10 @@
     diffFields,
     hours,
     mins,
+    timeToDigits,
+    parseTimeDigits,
+    applyTime,
+    applyTimeText,
     paxOptions,
     testRoster,
     boot,
