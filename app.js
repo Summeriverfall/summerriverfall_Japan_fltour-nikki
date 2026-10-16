@@ -24,7 +24,7 @@
   const DEFAULT_VEHICLES = [
     { id: 'v1', plate: 'なにわ330く1100' },
     { id: 'v2', plate: 'なにわ330う1107' },
-    { id: 'v3', plate: 'なにわ302え····7', note: '车牌中间被遮，待补全' },
+    { id: 'v3', plate: 'なにわ302え・・・7', note: '车牌中间被遮，待补全' },
     { id: 'v4', plate: 'なにわ330き1110' },
     { id: 'v5', plate: 'なにわ330う1104' },
     { id: 'v6', plate: 'なにわ330き1105' },
@@ -115,6 +115,9 @@
       const s = JSON.parse(raw);
       s.drivers = s.drivers || DEFAULT_DRIVERS;
       s.vehicles = s.vehicles || DEFAULT_VEHICLES;
+      s.vehicles.forEach((v) => {
+        if (v.id === 'v3' && /302え[·・]{4}7/.test(v.plate || '')) v.plate = 'なにわ302え・・・7';
+      });
       s.driverVehicle = s.driverVehicle || { ...DRIVER_VEHICLE };
       s.reports = s.reports || [];
       s.logs = s.logs || [];
