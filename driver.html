@@ -107,7 +107,7 @@
   <main class="wrap" id="app"></main>
   <div class="foot"><button class="btn" id="submitBtn" type="button">确认提交给公司</button></div>
   <div class="toast" id="toast"></div>
-  <script src="app.js?v=20261016c"></script>
+  <script src="app.js?v=20261016d"></script>
   <script>
     const SHOW_TEST_PLATES = true; // 正式版改 false，或整块删掉
     const $app = document.getElementById('app');
@@ -135,17 +135,12 @@
         .concat(opts.map(([v, l]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${l}</option>`));
       return `<select name="${name}" ${extra}>${o.join('')}</select>`;
     }
-    function hm(hName, mName, h, m) {
-      const hs = Nikki.hours().map((x) => [x, x]);
-      const ms = Nikki.mins().map((x) => [x, x]);
-      return `<div class="row2">${sel(hName, h, hs)} ${sel(mName, m, ms)}</div>`;
+    function timeBox(name, val) {
+      const digits = Nikki.timeToDigits(val);
+      return `<input name="${name}" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0630" value="${digits}" autocomplete="off">`;
     }
-    function timeSel(name, val) {
-      const opts = [];
-      Nikki.hours().forEach((h) => Nikki.mins().forEach((m) => {
-        const t = h + ':' + m; opts.push([t, t]);
-      }));
-      return sel(name, val, opts);
+    function timeBoxHM(name, h, m) {
+      return timeBox(name, (h || m) ? Nikki.timeToDigits(h, m) : '');
     }
 
     function switchDriver(e) {
@@ -229,7 +224,7 @@
           <button class="ghost" type="button" data-del="${i}">删除</button>
         </div>
         <label>出发时间 <span class="jp">出発時間</span></label>
-        ${timeSel('depart-' + i, t.depart)}
+        ${timeBox('depart-' + i, t.depart)}
         <label>上车地点 <span class="jp">乗車場所</span></label>
         <input name="pickup-${i}" value="${t.pickup || ''}" placeholder="例：なんば">
         <label>人数 <span class="jp">乗車人数（大人+小孩合计）</span></label>
@@ -237,7 +232,7 @@
         <label>到达地点 <span class="jp">到着場所</span></label>
         <input name="dropoff-${i}" value="${t.dropoff || ''}" placeholder="例：関西空港">
         <label>到达时间 <span class="jp">到着時間</span></label>
-        ${timeSel('arrive-' + i, t.arrive)}
+        ${timeBox('arrive-' + i, t.arrive)}
         <label>空车/等待（分钟） <span class="jp">空車・待機時間</span></label>
         <input name="wait-${i}" inputmode="numeric" value="${t.wait || ''}" placeholder="分钟">
       </div>`;
@@ -269,11 +264,12 @@
           <label>出库地点 <span class="jp">乗務開始地点</span></label>
           <input name="startPlace" value="${report.startPlace || '車庫'}">
           <label>出库时间 <span class="jp">24時間</span></label>
-          ${hm('startHour', 'startMin', report.startHour, report.startMin)}
+          ${timeBoxHM('startAt', report.startHour, report.startMin)}
+          <p class="hint">四位数字，0630＝早上 6:30</p>
           <label>回库地点 <span class="jp">乗務終了地点</span></label>
           <input name="endPlace" value="${report.endPlace || '車庫'}">
           <label>回库时间</label>
-          ${hm('endHour', 'endMin', report.endHour, report.endMin)}
+          ${timeBoxHM('endAt', report.endHour, report.endMin)}
         </div>
         <div class="card">
           <h2>公里数 ※空车距离必填</h2>
@@ -292,14 +288,14 @@
             return `<label>地点 ${i+1}</label>
               <input name="restPlace-${i}" value="${x.place || ''}" placeholder="场所名">
               <div class="row2">
-                <div><label>从</label>${timeSel('restFrom-'+i, x.from)}</div>
-                <div><label>到</label>${timeSel('restTo-'+i, x.to)}</div>
+                <div><label>从</label>${timeBox('restFrom-'+i, x.from)}</div>
+                <div><label>到</label>${timeBox('restTo-'+i, x.to)}</div>
               </div>`;
           }).join('')}
         </div>
         <div class="card">
           <h2>行程 主な経過地</h2>
-          <p class="hint">先填这一趟，不够再点下面增加。最后一趟回库不用另写。</p>
+          <p class="hint">时间填四位数字，0630＝6:30。先填这一趟，不够再加。</p>
           <div id="trips">${(report.trips || []).map(tripHtml).join('')}</div>
           <button class="add" type="button" id="addTrip">＋ 加一趟</button>
         </div>
@@ -325,27 +321,37 @@
       report.driverId = g('driverId') || report.driverId;
       report.vehicleId = g('vehicleId');
       report.startPlace = g('startPlace');
-      report.startHour = g('startHour');
-      report.startMin = g('startMin');
+      const startAt = Nikki.applyTime(report.startHour, report.startMin, g('startAt'));
+      report.startHour = startAt.h;
+      report.startMin = startAt.m;
       report.endPlace = g('endPlace');
-      report.endHour = g('endHour');
-      report.endMin = g('endMin');
+      const endAt = Nikki.applyTime(report.endHour, report.endMin, g('endAt'));
+      report.endHour = endAt.h;
+      report.endMin = endAt.m;
       report.meterStart = g('meterStart');
       report.meterEnd = g('meterEnd');
       report.emptyKm = g('emptyKm');
       report.accident = g('accident');
       report.instruction = g('instruction');
-      report.rests = [0,1,2].map((i) => ({
-        place: g('restPlace-' + i), from: g('restFrom-' + i), to: g('restTo-' + i),
-      }));
-      report.trips = [...$app.querySelectorAll('.trip')].map((el, i) => ({
-        depart: g('depart-' + i),
-        pickup: g('pickup-' + i),
-        pax: g('pax-' + i),
-        dropoff: g('dropoff-' + i),
-        arrive: g('arrive-' + i),
-        wait: g('wait-' + i),
-      }));
+      report.rests = [0,1,2].map((i) => {
+        const old = (report.rests && report.rests[i]) || {};
+        return {
+          place: g('restPlace-' + i),
+          from: Nikki.applyTimeText(old.from, g('restFrom-' + i)),
+          to: Nikki.applyTimeText(old.to, g('restTo-' + i)),
+        };
+      });
+      report.trips = [...$app.querySelectorAll('.trip')].map((el, i) => {
+        const old = (report.trips && report.trips[i]) || {};
+        return {
+          depart: Nikki.applyTimeText(old.depart, g('depart-' + i)),
+          pickup: g('pickup-' + i),
+          pax: g('pax-' + i),
+          dropoff: g('dropoff-' + i),
+          arrive: Nikki.applyTimeText(old.arrive, g('arrive-' + i)),
+          wait: g('wait-' + i),
+        };
+      });
       const dist = Nikki.distanceKm(report);
       const dEl = document.getElementById('dist');
       if (dEl) dEl.textContent = dist || '—';
