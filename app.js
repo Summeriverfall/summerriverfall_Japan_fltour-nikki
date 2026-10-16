@@ -126,6 +126,43 @@
   function saveLocal(s) {
     localStorage.setItem(KEY, JSON.stringify(s));
   }
+  function draftKey(driverId, date) {
+    return KEY + '-draft-' + driverId + '-' + (date || todayISO());
+  }
+  function saveDraft(report) {
+    if (!report || !report.driverId) return;
+    try { localStorage.setItem(draftKey(report.driverId, report.date), JSON.stringify(report)); }
+    catch (_) {}
+  }
+  function loadDraft(driverId, date) {
+    try {
+      const raw = localStorage.getItem(draftKey(driverId, date));
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function rememberSession(role, driverId) {
+    try {
+      localStorage.setItem('nikki-session', JSON.stringify({ role: role || '', driverId: driverId || '' }));
+    } catch (_) {}
+    if (role) sessionStorage.setItem('nikki-role', role);
+    if (driverId) sessionStorage.setItem('nikki-driver', driverId);
+    else sessionStorage.removeItem('nikki-driver');
+  }
+  function restoreSession() {
+    let role = sessionStorage.getItem('nikki-role') || '';
+    let driverId = sessionStorage.getItem('nikki-driver') || '';
+    if (role) return { role, driverId };
+    try {
+      const s = JSON.parse(localStorage.getItem('nikki-session') || '{}');
+      role = s.role || '';
+      driverId = s.driverId || '';
+      if (role) sessionStorage.setItem('nikki-role', role);
+      if (driverId) sessionStorage.setItem('nikki-driver', driverId);
+    } catch (_) {}
+    return { role, driverId };
+  }
   function token() {
     return sessionStorage.getItem('nikki-token') || '';
   }
@@ -187,7 +224,7 @@
     const job = pending;
     pending = null;
     if (!job || !useServer || !token()) {
-      setStatus(useServer ? '' : '未连上服务器，仅保存在本机');
+      setStatus('已保存');
       return;
     }
     try {
@@ -247,8 +284,7 @@
         body: JSON.stringify({ role: 'driver', driverId, password }),
       });
       sessionStorage.setItem('nikki-token', j.token);
-      sessionStorage.setItem('nikki-driver', driverId);
-      sessionStorage.setItem('nikki-role', 'driver');
+      rememberSession('driver', driverId);
       return pullState();
     }
     const s = load();
@@ -256,8 +292,7 @@
     const plate = vehiclePlate(s, vid);
     if (!plate) throw new Error('该乘务员未绑定车辆');
     if (normPlate(password) !== normPlate(plate)) throw new Error('车辆番号不对');
-    sessionStorage.setItem('nikki-driver', driverId);
-    sessionStorage.setItem('nikki-role', 'driver');
+    rememberSession('driver', driverId);
     return s;
   }
 
@@ -270,14 +305,13 @@
         body: JSON.stringify({ role: 'admin', user, password }),
       });
       sessionStorage.setItem('nikki-token', j.token);
-      sessionStorage.setItem('nikki-role', 'admin');
-      sessionStorage.removeItem('nikki-driver');
+      rememberSession('admin', '');
       return pullState();
     }
     if (String(user || '').trim() !== 'Admin' || String(password || '') !== 'FltourAdmin2026') {
       throw new Error('账号或密码不对');
     }
-    sessionStorage.setItem('nikki-role', 'admin');
+    rememberSession('admin', '');
     return load();
   }
 
@@ -285,6 +319,7 @@
     sessionStorage.removeItem('nikki-token');
     sessionStorage.removeItem('nikki-driver');
     sessionStorage.removeItem('nikki-role');
+    try { localStorage.removeItem('nikki-session'); } catch (_) {}
   }
 
   function distanceKm(rep) {
@@ -309,15 +344,18 @@
   }
   function ensureToday(s, driverId, date) {
     const day = date || todayISO();
-    let r = findToday(s, driverId, day);
+    let r = findToday(s, driverId, day) || loadDraft(driverId, day);
     if (r) {
-      if (r.status !== 'submitted') {
-        const before = JSON.stringify(r.trips || []);
-        r.trips = compactTrips(r.trips);
-        if (JSON.stringify(r.trips) !== before) {
-          saveLocal(s);
-          queue('report', { report: r, log: null });
-        }
+      if (!findToday(s, driverId, day)) {
+        s.reports.unshift(r);
+        saveLocal(s);
+      }
+      const before = JSON.stringify(r.trips || []);
+      r.trips = compactTrips(r.trips);
+      if (JSON.stringify(r.trips) !== before) {
+        saveLocal(s);
+        saveDraft(r);
+        queue('report', { report: r, log: null });
       }
       return r;
     }
@@ -328,6 +366,7 @@
     });
     s.reports.unshift(r);
     saveLocal(s);
+    saveDraft(r);
     queue('report', { report: r, log: null });
     return r;
   }
@@ -338,6 +377,8 @@
     else s.reports.unshift(report);
     if (logEntry) s.logs.unshift({ id: uid('l'), at: report.updatedAt, reportId: report.id, ...logEntry });
     saveLocal(s);
+    saveDraft(report);
+    setStatus('已保存');
     queue('report', { report, log: logEntry || null });
   }
   function savePeople(s) {
@@ -401,6 +442,7 @@
   }
 
   w.addEventListener('pagehide', () => { flush(); });
+  w.addEventListener('beforeunload', () => { flush(); });
   w.addEventListener('visibilitychange', () => {
     if (document.hidden) flush();
   });
@@ -440,6 +482,8 @@
     loginAdmin,
     logout,
     token,
+    restoreSession,
+    saveDraft,
     reset() {
       localStorage.removeItem(KEY);
       return load();
