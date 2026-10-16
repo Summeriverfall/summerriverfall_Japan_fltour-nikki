@@ -138,7 +138,7 @@
     </div>
   </div>
   <div class="wrap" id="app"></div>
-  <script src="app.js"></script>
+  <script src="app.js?v=20261016"></script>
   <script>
     let state = Nikki.load();
     let tab = 'list';
@@ -490,8 +490,9 @@
     }
 
     (async () => {
+      const sess = Nikki.restoreSession();
       state = await Nikki.boot();
-      authed = sessionStorage.getItem('nikki-role') === 'admin';
+      authed = sess.role === 'admin' || sessionStorage.getItem('nikki-role') === 'admin';
       render();
     })();
   </script>
